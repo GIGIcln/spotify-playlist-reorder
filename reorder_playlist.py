@@ -1,19 +1,81 @@
 import os
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
-from dotenv import load_dotenv
 
-load_dotenv()
 
-SCOPE = "playlist-modify-public playlist-modify-private playlist-read-private"
+# 1. CREDENZIALI (inserite direttamente, senza variabili d'ambiente)
+CLIENT_ID = "2df97bee9c9c48ffb312a1a9ed171305"
+CLIENT_SECRET = "41b949d4524040ddbbb281d762a9e8a3"
+REDIRECT_URI = "http://127.0.0.1:8080/callback"
 
+# 2. PERMESSI
+SCOPE = "playlist-read-private playlist-read-collaborative playlist-modify-public playlist-modify-private"
+
+# 3. CACHE
+CACHE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".spotify_token_cache")
+if os.path.exists(CACHE_PATH):
+    os.remove(CACHE_PATH)
+
+print("⏳ Avvio procedura di autenticazione Spotify...")
+print("🌐 Il browser dovrebbe aprirsi automaticamente a breve.\n")
+
+# 4. AUTENTICAZIONE
 sp = spotipy.Spotify(auth_manager=SpotifyOAuth(
-    client_id=os.getenv("SPOTIPY_CLIENT_ID"),
-    client_secret=os.getenv("SPOTIPY_CLIENT_SECRET"),
-    redirect_uri=os.getenv("SPOTIPY_REDIRECT_URI"),
-    scope=SCOPE
+    client_id=CLIENT_ID,
+    client_secret=CLIENT_SECRET,
+    redirect_uri=REDIRECT_URI,
+    scope=SCOPE,
+    cache_path=CACHE_PATH,
+    open_browser=True
 ))
 
+print("✅ Autenticazione completata con successo!\n")
+
+# DEBUG: Verifica gli scope del token
+print("🔍 DEBUG: Verifica permessi del token...")
+try:
+    token_info = sp.auth_manager.get_cached_token()
+    if token_info:
+        scopes = token_info.get('scope', 'Nessuno scope trovato')
+        print(f"✅ Scope del token: {scopes}")
+    else:
+        print("⚠️ Nessun token trovato nella cache.")
+except Exception as e:
+    print(f"❌ Errore nel verificare gli scope: {e}")
+
+print("\n" + "="*80 + "\n")
+
+# DEBUG: Chi sono io e chi è il proprietario della playlist?
+print("🔍 DEBUG: Verifica account...")
+try:
+    me = sp.current_user()
+    print(f"✅ IO SONO: {me['id']} ({me['display_name']})")
+except Exception as e:
+    print(f"❌ Errore nel recuperare l'utente: {e}")
+    exit(1)
+
+# Prova a ottenere la playlist per vedere chi è il proprietario
+playlist_id_debug = "0EWJQ38fuPDwGpGifCqmpn"
+try:
+    playlist_info = sp.playlist(playlist_id_debug)
+    owner = playlist_info['owner']['id']
+    is_public = playlist_info['public']
+    print(f"✅ LA PLAYLIST È DI: {owner}")
+    print(f"✅ LA PLAYLIST È PUBBLICA: {is_public}")
+    
+    if me['id'] != owner:
+        print(f"\n⚠️ ATTENZIONE: L'account autenticato ({me['id']}) NON è il proprietario della playlist ({owner})!")
+        print("Questo è il motivo dell'errore 403 Forbidden.")
+        print("Devi autorizzare l'app con l'account che possiede la playlist.")
+except Exception as e:
+    print(f"❌ Errore nel recuperare la playlist: {e}")
+    print("La playlist potrebbe essere privata e tu non hai i permessi per vederla.")
+
+print("\n" + "="*80 + "\n")
+
+# --- DA QUI IN POI IL TUO CODICE ORIGINALE PROSEGUE ---
+# def riordina_playlist(link):
+#     ...
 def estrai_playlist_id(url):
     return url.split("/")[-1].split("?")[0]
 
@@ -33,7 +95,7 @@ def riordina_playlist(playlist_url):
     tracks_data = []
     
     # Scarica tutti i dati della playlist
-    results = sp.playlist_items(playlist_id)
+    results = sp.playlist_items(playlist_id, additional_types=['track'])
     
     while results:
         for entry in results['items']:
