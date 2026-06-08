@@ -36,6 +36,7 @@ Un'applicazione desktop per riordinare automaticamente le tue playlist Spotify i
 - **Progress Bar Visiva**: Monitoraggio in tempo reale
 - **Filtri Automatici**: Esclusione di podcast e file locali
 - **File Executable**: Disponibile versione .exe per Windows
+- **Versione Flet**: Interfaccia moderna con supporto mobile e web
 
 ### Sicurezza
 
@@ -110,6 +111,21 @@ Ma **ogni utente deve configurare le proprie credenziali** al primo avvio.
 ### Opzione 2: Scaricare l'EXE (Windows)
 
 Puoi scaricare direttamente il file .exe dalla sezione Releases o crearlo tu stesso seguendo le istruzioni nella sezione "Creare file EXE".
+
+### Opzione 3: Versione Flet 
+
+La versione Flet offre un'interfaccia moderna e può essere esportata per Android, iOS e Web.
+
+1. **Installa Flet**: `pip install flet`
+
+2. **Avvia l'app Flet**: `flet run app_flet.py`
+
+3. **Vantaggi rispetto alla versione Tkinter**:
+   - Interfaccia Material Design moderna
+   - Tema scuro automatico
+   - Progress bar visiva
+   - Log in tempo reale
+   - Esportabile per Android/iOS/Web
 
 ## Utilizzo
 
