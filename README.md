@@ -3,19 +3,38 @@
 [![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-Un'applicazione desktop per riordinare automaticamente le tue playlist Spotify in base a criteri personalizzati: Artista, Data di uscita e Posizione nell'album.
+Un'applicazione desktop per riordinare automaticamente le tue playlist Spotify in base a criteri personalizzati: Artista, Data di uscita e Posizione nell'album. Disponibile sia come script Python che come applicazione .exe per Windows.
 
 ## Indice
 
-- [Caratteristiche](#caratteristiche)
-- [Requisiti](#requisiti)
-- [Installazione](#installazione)
-- [Utilizzo](#utilizzo)
-- [Configurazione Spotify](#configurazione-spotify)
-- [Come Funziona](#come-funziona)
-- [Struttura del Progetto](#struttura-del-progetto)
-- [Risoluzione Problemi](#risoluzione-problemi)
-- [Licenza](#licenza)
+- [Spotify Playlist Reorderer](#spotify-playlist-reorderer)
+  - [Indice](#indice)
+  - [Caratteristiche](#caratteristiche)
+    - [Funzionalità Principali](#funzionalità-principali)
+    - [Sicurezza](#sicurezza)
+  - [Requisiti](#requisiti)
+    - [Software Richiesto](#software-richiesto)
+    - [Per creare l'EXE (Windows)](#per-creare-lexe-windows)
+  - [Installazione](#installazione)
+    - [Opzione 1: Utilizzo come Script Python](#opzione-1-utilizzo-come-script-python)
+    - [Opzione 2: Scaricare l'EXE (Windows)](#opzione-2-scaricare-lexe-windows)
+  - [Utilizzo](#utilizzo)
+    - [Primo Avvio](#primo-avvio)
+    - [Esempio di Output](#esempio-di-output)
+  - [Configurazione Spotify](#configurazione-spotify)
+    - [Creare un'App Spotify Developer](#creare-unapp-spotify-developer)
+    - [Note Importanti](#note-importanti)
+  - [Creare file EXE (Windows)](#creare-file-exe-windows)
+    - [Passaggi:](#passaggi)
+    - [Note importanti:](#note-importanti-1)
+  - [Come Funziona](#come-funziona)
+    - [Algoritmo di Ordinamento](#algoritmo-di-ordinamento)
+    - [Gestione Playlist Grandi](#gestione-playlist-grandi)
+    - [Filtri Applicati](#filtri-applicati)
+  - [Struttura del Progetto](#struttura-del-progetto)
+  - [Risoluzione Problemi](#risoluzione-problemi)
+    - [Errori Comuni](#errori-comuni)
+  - [Licenza](#licenza)
 
 ## Caratteristiche
 
@@ -32,6 +51,7 @@ Un'applicazione desktop per riordinare automaticamente le tue playlist Spotify i
 - **Retry Automatico**: Gestione intelligente degli errori
 - **Progress Bar Visiva**: Monitoraggio in tempo reale
 - **Filtri Automatici**: Esclusione di podcast e file locali
+- **File Executable**: Disponibile versione .exe per Windows
 
 ### Sicurezza
 
@@ -43,19 +63,18 @@ Un'applicazione desktop per riordinare automaticamente le tue playlist Spotify i
 
 ### Software Richiesto
 
-- **Python 3.8** o superiore
+- **Python 3.8** o superiore (per versione script)
 - **Account Spotify** (gratuito o premium)
 - **Connessione Internet** per l'autorizzazione API
 
-### Dipendenze Python
+### Per creare l'EXE (Windows)
 
-Il progetto utilizza le seguenti librerie:
-- spotipy>=2.23.0
-- python-dotenv>=1.0.0 (solo per versione CLI)
+- Sistema operativo Windows 10/11
+- PyInstaller (si installa automaticamente)
 
 ## Installazione
 
-### Metodo 1: Clonazione da GitHub (Consigliato)
+### Opzione 1: Utilizzo come Script Python
 
 1. **Clona la repository**: `git clone https://github.com/GIGIcln/spotify-playlist-reorder.git`
 
@@ -71,13 +90,17 @@ Il progetto utilizza le seguenti librerie:
 
 5. **Avvia l'applicazione**: `python app.py`
 
+### Opzione 2: Scaricare l'EXE (Windows)
+
+Puoi scaricare direttamente il file .exe dalla sezione Releases o crearlo tu stesso seguendo le istruzioni sotto.
+
 ## Utilizzo
 
 ### Primo Avvio
 
 1. Configura l'App Spotify Developer (vedi sezione Configurazione)
 
-2. Avvia l'applicazione: `python app.py`
+2. Avvia l'applicazione: `python app.py` (oppure doppio clic su SpotifyReorderer.exe)
 
 3. Inserisci le credenziali:
    - **Client ID**: Copiato dalla dashboard Spotify
@@ -116,6 +139,32 @@ Playlist con 247 elementi totali - Trovati 245 brani validi su 247 totali - Ordi
 - Il Redirect URI deve corrispondere esattamente a quello nel codice
 - L'app è per uso personale
 
+## Creare file EXE (Windows)
+
+Se vuoi trasformare l'applicazione in un file eseguibile .exe che puoi avviare con un doppio clic:
+
+### Passaggi:
+
+1. **Attiva l'ambiente virtuale**: `.\spotify-env\Scripts\Activate.ps1`
+
+2. **Installa PyInstaller**: `pip install pyinstaller`
+
+3. **Crea l'exe**: 
+
+```bash
+pyinstaller --noconfirm --onefile --windowed --name "SpotifyReorderer" app.py
+```
+
+
+4. **Trova il file**: L'exe sarà nella cartella `dist/SpotifyReorderer.exe`
+
+### Note importanti:
+
+- **Dimensione**: L'exe peserà circa 15-25 MB (include Python e le librerie)
+- **Primo avvio**: Windows potrebbe mostrare un avviso di sicurezza. Clicca su "Altre informazioni" e poi "Esegui comunque"
+- **Settings.json**: Le credenziali verranno salvate nella stessa cartella dell'exe
+- **Consiglio**: Crea una cartella dedicata per l'exe (es. C:\Apps\SpotifyReorderer\)
+
 ## Come Funziona
 
 ### Algoritmo di Ordinamento
@@ -130,8 +179,8 @@ L'applicazione utilizza un algoritmo di ordinamento a tre livelli:
 Per playlist con più di 100 brani:
 1. **Svuotamento**: Rimuove tutti i brani dalla playlist
 2. **Aggiunta Batch**: Re-inserisce i brani ordinati a blocchi di 100
-   - Ogni batch attende 0.5 secondi per evitare rate limiting
-   - Retry automatico (fino a 3 tentativi) in caso di errore
+- Ogni batch attende 0.5 secondi per evitare rate limiting
+- Retry automatico (fino a 3 tentativi) in caso di errore
 
 ### Filtri Applicati
 
@@ -147,10 +196,12 @@ spotify-playlist-reorder/
 ├── app.py (Applicazione GUI principale)
 ├── reorder_playlist.py (Versione CLI terminale)
 ├── requirements.txt (Dipendenze Python)
-├── settings.json (Credenziali salvate - auto-generato)
+├── settings.json (Credenziali salvate - auto-generato, NON committare)
 ├── .gitignore (File ignorati da Git)
 ├── LICENSE (Licenza MIT)
-└── README.md (Documentazione)
+├── README.md (Documentazione)
+├── dist/ (Cartella contenente l'exe dopo la compilazione)
+└── build/ (Cartella temporanea di PyInstaller)
 
 ## Risoluzione Problemi
 
@@ -165,6 +216,8 @@ spotify-playlist-reorder/
 **"Nessun brano valido trovato"** - Causa: Playlist vuota o contenente solo podcast/file locali - Soluzione: Verifica che la playlist contenga brani musicali
 
 **"ModuleNotFoundError: No module named 'spotipy'"** - Causa: Dipendenze non installate - Soluzione: pip install -r requirements.txt
+
+**"Windows ha protetto il tuo PC"** (solo exe) - Causa: L'exe non ha firma digitale - Soluzione: Clicca "Altre informazioni" e poi "Esegui comunque"
 
 ## Licenza
 
