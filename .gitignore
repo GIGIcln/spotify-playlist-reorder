@@ -1,4 +1,23 @@
-.env
+# Credenziali salvate
+settings.json
+
+# Ambiente virtuale
+spotify-env/
+venv/
+ENV/
+
+# File Python
 __pycache__/
 *.pyc
-.venv/
+*.pyo
+
+# Environment variables
+.env
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
