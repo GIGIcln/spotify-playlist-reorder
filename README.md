@@ -1,4 +1,3 @@
-cat > README.md << 'EOF'
 # Spotify Playlist Reorder
 
 Script Python per riordinare automaticamente le playlist di Spotify in base a criteri personalizzati.
@@ -151,8 +150,3 @@ Copia manualmente l'URL che appare nel terminale e incollalo nel browser.
 Se il progetto viene aggiornato con nuove dipendenze, esegui:
 
     pip install -r requirements.txt --upgrade
-
-## Licenza
-
-Progetto per uso personale.
-EOF
