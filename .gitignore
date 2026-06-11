@@ -1,29 +1,23 @@
-# Credenziali salvate
-settings.json
-
-# Ambiente virtuale
+cat > .gitignore << 'EOF'
+# Ambienti virtuali Python
 spotify-env/
 venv/
-ENV/
+env/
 
-# File Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-
-# Environment variables
-.env
-
-# IDE
-.vscode/
-.idea/
-
-# OS
+# File di sistema macOS
 .DS_Store
 Thumbs.db
 
-# Flet build directories
+# Cache e token di autenticazione (IMPORTANTE per la sicurezza)
+.cache
+.spotify_token_cache
+
+# Variabili d'ambiente e configurazioni locali
+.env
+settings.json
+
+# Artifact di build di PyInstaller
 build/
 dist/
 *.spec
+EOF
