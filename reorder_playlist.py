@@ -4,9 +4,9 @@ from spotipy.oauth2 import SpotifyOAuth
 
 
 # 1. CREDENZIALI (inserite direttamente, senza variabili d'ambiente)
-CLIENT_ID = "2df97bee9c9c48ffb312a1a9ed171305"
-CLIENT_SECRET = "41b949d4524040ddbbb281d762a9e8a3"
-REDIRECT_URI = "http://127.0.0.1:8080/callback"
+CLIENT_ID = "43cb1c95f8134343926d894ec86c651b"
+CLIENT_SECRET = "e9c2e0e14a00442399d05b3c0eb9d975"
+REDIRECT_URI = "http://127.0.0.1:8888/callback"
 
 # 2. PERMESSI
 SCOPE = "playlist-read-private playlist-read-collaborative playlist-modify-public playlist-modify-private"
