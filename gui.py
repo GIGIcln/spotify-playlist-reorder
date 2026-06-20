@@ -3,7 +3,9 @@ import time
 import threading
 import flet as ft
 
-from auth import create_client, CACHE_PATH
+from urllib.parse import urlparse
+from spotipy import Spotify
+from auth import create_oauth, wait_for_oauth_callback, CACHE_PATH
 from playlist import (
     fetch_tracks,
     calcola_ordine_target,
@@ -177,6 +179,13 @@ def main(page: ft.Page) -> None:
         style=_btn_style,
     )
 
+    _switch_btn = ft.TextButton(
+        "Cambia account",
+        icon=ft.Icons.SWAP_HORIZ,
+        style=ft.ButtonStyle(color=_MUTED),
+        visible=False,
+    )
+
     _reorder_btn = ft.Button(
         "Riordina",
         icon=ft.Icons.SORT,
@@ -200,14 +209,22 @@ def main(page: ft.Page) -> None:
     # ── event handlers ────────────────────────────────────────────────────────
     def do_auth(_) -> None:
         _auth_btn.disabled = True
-        if os.path.exists(CACHE_PATH):
-            set_status("Connessione in corso…", "warn")
-        else:
-            set_status("Il browser si aprirà: clicca 'Accetta' per continuare", "warn")
+        page.update()
 
         def _run() -> None:
             try:
-                sp = create_client()
+                oauth = create_oauth(show_dialog=not os.path.exists(CACHE_PATH))
+                if not oauth.get_cached_token():
+                    auth_url = oauth.get_authorize_url()
+                    port = urlparse(oauth.redirect_uri).port or 8888
+                    set_status("Il browser si aprirà: clicca 'Accetta' per continuare", "warn")
+                    os.startfile(auth_url)
+                    code = wait_for_oauth_callback(port)
+                    oauth.get_access_token(code, as_dict=False)
+                else:
+                    set_status("Connessione in corso…", "warn")
+
+                sp = Spotify(auth_manager=oauth)
                 sp.me()
                 state["sp"] = sp
                 set_status("Caricamento playlist…", "warn")
@@ -234,7 +251,7 @@ def main(page: ft.Page) -> None:
         for p in items:
             _list.controls.append(_make_card(p))
 
-        for w in (_sel_all, _desel_all, _counter, _criteria, _reorder_btn, _search):
+        for w in (_sel_all, _desel_all, _counter, _criteria, _reorder_btn, _search, _switch_btn):
             w.visible = True
         _auth_btn.visible = False
         _update_counter()
@@ -314,8 +331,24 @@ def main(page: ft.Page) -> None:
 
         threading.Thread(target=_run, daemon=True).start()
 
+    def do_switch_account(_) -> None:
+        if os.path.exists(CACHE_PATH):
+            os.remove(CACHE_PATH)
+        state["sp"] = None
+        _cards.clear()
+        _list.controls.clear()
+        for w in (_sel_all, _desel_all, _counter, _criteria, _reorder_btn, _search, _switch_btn):
+            w.visible = False
+        _auth_btn.visible = True
+        _auth_btn.disabled = False
+        _dot.bgcolor = _BORDER
+        _status.value = "Non connesso"
+        _status.color = _MUTED
+        page.update()
+
     # ── wire events ──────────────────────────────────────────────────────────
     _auth_btn.on_click = do_auth
+    _switch_btn.on_click = do_switch_account
     _sel_all.on_click = do_select_all
     _desel_all.on_click = do_deselect_all
     _reorder_btn.on_click = do_reorder
@@ -337,7 +370,7 @@ def main(page: ft.Page) -> None:
                     spacing=10,
                 ),
                 ft.Row(
-                    [_dot, _status, _auth_btn],
+                    [_dot, _status, _auth_btn, _switch_btn],
                     spacing=10,
                     vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 ),
