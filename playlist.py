@@ -1,4 +1,5 @@
 from spotipy import Spotify
+from tqdm import tqdm
 
 CRITERI_ORDINAMENTO = [
     {
@@ -88,22 +89,24 @@ def applica_riordinamento(sp: Spotify, playlist_id: str, target_order: list[int]
     snapshot_id = None
     moves = 0
 
-    for i, orig_idx in enumerate(target_order):
-        current_pos = current_order.index(orig_idx)
-        if current_pos == i:
-            continue
-        insert_before = i if current_pos > i else i + 1
-        result = sp.playlist_reorder_items(
-            playlist_id,
-            range_start=current_pos,
-            insert_before=insert_before,
-            range_length=1,
-            snapshot_id=snapshot_id,
-        )
-        snapshot_id = result.get("snapshot_id")
-        moves += 1
-        item = current_order.pop(current_pos)
-        current_order.insert(i, item)
+    with tqdm(total=len(target_order), desc="Riordinamento", unit="pos") as pbar:
+        for i, orig_idx in enumerate(target_order):
+            current_pos = current_order.index(orig_idx)
+            if current_pos != i:
+                insert_before = i if current_pos > i else i + 1
+                result = sp.playlist_reorder_items(
+                    playlist_id,
+                    range_start=current_pos,
+                    insert_before=insert_before,
+                    range_length=1,
+                    snapshot_id=snapshot_id,
+                )
+                snapshot_id = result.get("snapshot_id")
+                moves += 1
+                item = current_order.pop(current_pos)
+                current_order.insert(i, item)
+            pbar.update(1)
+            pbar.set_postfix(spostamenti=moves)
 
     return moves
 

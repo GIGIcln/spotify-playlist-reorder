@@ -2,7 +2,33 @@ from auth import create_client
 from playlist import riordina_playlist, CRITERI_ORDINAMENTO
 
 
-def scegli_playlist(sp) -> str:
+def _parse_selezione(raw: str, n: int) -> list[int] | None:
+    """Converte '1,3-5,7' in lista di indici 0-based. Ritorna None se non valido."""
+    indices = []
+    for token in raw.split(","):
+        token = token.strip()
+        if "-" in token:
+            parts = token.split("-", 1)
+            try:
+                a, b = int(parts[0]), int(parts[1])
+            except ValueError:
+                return None
+            if not (1 <= a <= b <= n):
+                return None
+            indices.extend(range(a - 1, b))
+        else:
+            try:
+                v = int(token)
+            except ValueError:
+                return None
+            if not (1 <= v <= n):
+                return None
+            indices.append(v - 1)
+    seen = set()
+    return [i for i in indices if not (i in seen or seen.add(i))]
+
+
+def scegli_playlist(sp) -> list[str]:
     print("📋 Caricamento delle tue playlist...")
     playlists = []
     results = sp.current_user_playlists()
@@ -20,6 +46,7 @@ def scegli_playlist(sp) -> str:
         print("❌ Nessuna playlist trovata nel tuo account.")
         raise SystemExit(1)
 
+    n = len(playlists)
     print(f"\n{'N°':<5} {'Playlist':<50} {'Brani':>6}")
     print("-" * 63)
     for i, p in enumerate(playlists, 1):
@@ -28,13 +55,11 @@ def scegli_playlist(sp) -> str:
 
     print()
     while True:
-        try:
-            scelta = int(input(f"Scegli una playlist (1-{len(playlists)}): "))
-            if 1 <= scelta <= len(playlists):
-                return playlists[scelta - 1]["id"]
-            print(f"⚠️  Inserisci un numero tra 1 e {len(playlists)}.")
-        except ValueError:
-            print("⚠️  Inserisci un numero valido.")
+        raw = input(f"Scegli playlist (es. 1 | 1,3 | 2-5): ").strip()
+        indices = _parse_selezione(raw, n)
+        if indices:
+            return [playlists[i]["id"] for i in indices]
+        print(f"⚠️  Formato non valido. Usa numeri tra 1 e {n}, separati da virgola o range (es. 2-4).")
 
 
 def scegli_criterio() -> dict:
@@ -69,9 +94,13 @@ def main() -> None:
 
     print("✅ Autenticazione completata con successo!\n")
 
-    playlist_id = scegli_playlist(sp)
+    playlist_ids = scegli_playlist(sp)
     criterio = scegli_criterio()
-    riordina_playlist(sp, "https://open.spotify.com/playlist/" + playlist_id, criterio)
+
+    for i, playlist_id in enumerate(playlist_ids, 1):
+        if len(playlist_ids) > 1:
+            print(f"\n▶ Playlist {i}/{len(playlist_ids)}")
+        riordina_playlist(sp, "https://open.spotify.com/playlist/" + playlist_id, criterio)
 
 
 if __name__ == "__main__":
