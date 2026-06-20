@@ -1,23 +1,24 @@
-cat > .gitignore << 'EOF'
-# Ambienti virtuali Python
+# Credenziali e cache
+settings.json
+.env
+.cache
+
+# Ambiente virtuale
 spotify-env/
 venv/
 env/
+ENV/
 
-# File di sistema macOS
+# File Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# IDE
+.vscode/
+.idea/
+
+# OS
 .DS_Store
 Thumbs.db
-
-# Cache e token di autenticazione (IMPORTANTE per la sicurezza)
-.cache
-.spotify_token_cache
-
-# Variabili d'ambiente e configurazioni locali
-.env
-settings.json
-
-# Artifact di build di PyInstaller
-build/
-dist/
-*.spec
-EOF
