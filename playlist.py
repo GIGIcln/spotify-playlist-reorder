@@ -1,3 +1,4 @@
+import time
 from spotipy import Spotify
 from tqdm import tqdm
 
@@ -26,6 +27,36 @@ CRITERI_ORDINAMENTO = [
         "label": "Popolarità (dal più popolare)",
         "key": lambda t: t.get("popularity", 0),
         "reverse": True,
+    },
+    {
+        "label": "BPM (dal più lento)",
+        "key": lambda t: t.get("bpm", 0.0),
+        "reverse": False,
+        "needs_audio": True,
+    },
+    {
+        "label": "BPM (dal più veloce)",
+        "key": lambda t: t.get("bpm", 0.0),
+        "reverse": True,
+        "needs_audio": True,
+    },
+    {
+        "label": "Energia (dalla più alta)",
+        "key": lambda t: t.get("energy", 0.0),
+        "reverse": True,
+        "needs_audio": True,
+    },
+    {
+        "label": "Danceability (dalla più alta)",
+        "key": lambda t: t.get("danceability", 0.0),
+        "reverse": True,
+        "needs_audio": True,
+    },
+    {
+        "label": "Valence / positività (dalla più alta)",
+        "key": lambda t: t.get("valence", 0.0),
+        "reverse": True,
+        "needs_audio": True,
     },
 ]
 
@@ -72,6 +103,32 @@ def fetch_tracks(sp: Spotify, playlist_id: str) -> list[dict]:
     return tracks
 
 
+def enrich_with_audio_features(sp: Spotify, tracks: list[dict]) -> list[dict]:
+    """Fetch BPM/energy/danceability/valence from Spotify and add them to each track dict."""
+    uris = [t["uri"] for t in tracks]
+    uri_to_idx = {uri: i for i, uri in enumerate(uris)}
+
+    for batch_start in range(0, len(uris), 100):
+        batch_uris = uris[batch_start:batch_start + 100]
+        batch_ids = [u.split(":")[-1] for u in batch_uris]
+        try:
+            features_batch = sp.audio_features(batch_ids)
+        except Exception as e:
+            print(f"⚠️ Audio features non disponibili (batch {batch_start // 100 + 1}): {e}")
+            continue
+
+        for uri, feat in zip(batch_uris, features_batch or []):
+            if not feat:
+                continue
+            idx = uri_to_idx[uri]
+            tracks[idx]["bpm"] = feat.get("tempo", 0.0)
+            tracks[idx]["energy"] = feat.get("energy", 0.0)
+            tracks[idx]["danceability"] = feat.get("danceability", 0.0)
+            tracks[idx]["valence"] = feat.get("valence", 0.0)
+
+    return tracks
+
+
 def calcola_ordine_target(tracks: list[dict], criterio: dict = None) -> list[int]:
     if criterio is None:
         criterio = DEFAULT_CRITERIO
@@ -84,6 +141,22 @@ def calcola_ordine_target(tracks: list[dict], criterio: dict = None) -> list[int
     return [orig_idx for orig_idx, _ in indexed_sorted]
 
 
+def _reorder_with_retry(sp: Spotify, playlist_id: str, max_retries: int = 5, **kwargs) -> dict:
+    """Call playlist_reorder_items with exponential backoff on 429/5xx errors."""
+    for attempt in range(max_retries):
+        try:
+            return sp.playlist_reorder_items(playlist_id, **kwargs)
+        except Exception as e:
+            http_status = getattr(e, "http_status", None)
+            if http_status in (429, 500, 502, 503) and attempt < max_retries - 1:
+                headers = getattr(e, "headers", {}) or {}
+                retry_after = int(headers.get("Retry-After", 0))
+                wait = max(retry_after, 2 ** attempt)
+                time.sleep(wait)
+            else:
+                raise
+
+
 def applica_riordinamento(sp: Spotify, playlist_id: str, target_order: list[int]) -> int:
     current_order = list(range(len(target_order)))
     snapshot_id = None
@@ -94,7 +167,8 @@ def applica_riordinamento(sp: Spotify, playlist_id: str, target_order: list[int]
             current_pos = current_order.index(orig_idx)
             if current_pos != i:
                 insert_before = i if current_pos > i else i + 1
-                result = sp.playlist_reorder_items(
+                result = _reorder_with_retry(
+                    sp,
                     playlist_id,
                     range_start=current_pos,
                     insert_before=insert_before,
@@ -112,6 +186,8 @@ def applica_riordinamento(sp: Spotify, playlist_id: str, target_order: list[int]
 
 
 def riordina_playlist(sp: Spotify, playlist_url: str, criterio: dict = None) -> None:
+    if criterio is None:
+        criterio = DEFAULT_CRITERIO
     playlist_id = estrai_playlist_id(playlist_url)
     print("⏳ Download dei brani e metadati in corso...")
 
@@ -121,6 +197,10 @@ def riordina_playlist(sp: Spotify, playlist_url: str, criterio: dict = None) -> 
         print("❌ Nessun brano valido trovato.")
         print("💡 Controlla che la playlist contenga canzoni (non podcast) e che non siano file locali.")
         return
+
+    if criterio.get("needs_audio"):
+        print("⏳ Download audio features in corso...")
+        tracks = enrich_with_audio_features(sp, tracks)
 
     print(f"🎵 Trovati {len(tracks)} brani. Calcolo dell'ordine in corso...")
 
