@@ -14,11 +14,30 @@ APP_DISPLAY = "Spotify Playlist Reorder"
 APP_VERSION = "1.0.0"
 
 
+def _find_flet(root: Path) -> str:
+    """Return the flet CLI executable, preferring the project venv.
+
+    Checks common venv locations relative to the project root, then
+    falls back to whatever 'flet' is on PATH.
+    """
+    venv_names = ["spotify-env", "venv", ".venv"]
+    scripts_subdir = "Scripts" if sys.platform == "win32" else "bin"
+    flet_name = "flet.exe" if sys.platform == "win32" else "flet"
+
+    for venv in venv_names:
+        candidate = root / venv / scripts_subdir / flet_name
+        if candidate.exists():
+            return str(candidate)
+
+    return flet_name  # fall back to PATH
+
+
 def main() -> None:
     root = Path(__file__).parent
+    flet = _find_flet(root)
 
     cmd = [
-        sys.executable, "-m", "flet", "pack", "gui.py",
+        flet, "pack", "gui.py",
         "--name", APP_NAME,
         "--product-name", APP_DISPLAY,
         "--product-version", APP_VERSION,
@@ -37,19 +56,19 @@ def main() -> None:
     subprocess.run(cmd, check=True, cwd=root)
 
     dist = root / "dist"
-    print("\n✅ Build completata!")
+    print("\nBuild completata!")
 
     if sys.platform == "win32":
         out = dist / f"{APP_NAME}.exe"
         print(f"   Eseguibile: {out}")
-        print("\n📋 Copia il file .env nella stessa cartella dell'eseguibile prima di avviarlo.")
+        print("\nNOTA: copia il file .env nella stessa cartella dell'eseguibile prima di avviarlo.")
     elif sys.platform == "darwin":
         out = dist / f"{APP_NAME}.app"
         print(f"   Bundle: {out}")
-        print("\n📋 Copia il file .env nella stessa cartella del bundle .app prima di avviarlo.")
+        print("\nNOTA: copia il file .env nella stessa cartella del bundle .app prima di avviarlo.")
     else:
         print(f"   Output: {dist}")
-        print("\n📋 Copia il file .env nella stessa cartella dell'eseguibile prima di avviarlo.")
+        print("\nNOTA: copia il file .env nella stessa cartella dell'eseguibile prima di avviarlo.")
 
 
 if __name__ == "__main__":
