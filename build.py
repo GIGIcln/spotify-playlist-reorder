@@ -27,8 +27,11 @@ def main() -> None:
 
     if sys.platform == "win32" and (root / "icon.ico").exists():
         cmd += ["--icon", "icon.ico"]
-    elif sys.platform == "darwin" and (root / "icon.icns").exists():
-        cmd += ["--icon", "icon.icns"]
+    elif sys.platform == "darwin":
+        for candidate in ("icon.icns", "icon.png"):
+            if (root / candidate).exists():
+                cmd += ["--icon", candidate]
+                break
 
     print("Building:", " ".join(cmd))
     subprocess.run(cmd, check=True, cwd=root)
