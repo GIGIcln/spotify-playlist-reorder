@@ -38,7 +38,7 @@ def scegli_playlist(sp) -> list[str]:
                 playlists.append({
                     "name": item["name"],
                     "id": item["id"],
-                    "tracks": item["tracks"]["total"],
+                    "tracks": (item.get("tracks") or {}).get("total", 0),
                 })
         results = sp.next(results) if results.get("next") else None
 

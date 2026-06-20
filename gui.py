@@ -92,7 +92,7 @@ def main(page: ft.Page) -> None:
         for p in items:
             playlist_column.controls.append(
                 ft.Checkbox(
-                    label=f"{p['name']}  ({p['tracks']['total']} brani)",
+                    label=f"{p['name']}  ({(p.get('tracks') or {}).get('total', '?')} brani)",
                     value=False,
                     data=p["id"],
                 )
