@@ -1,7 +1,8 @@
+import os
 import threading
 import flet as ft
 
-from auth import create_client
+from auth import create_client, CACHE_PATH
 from playlist import (
     fetch_tracks,
     calcola_ordine_target,
@@ -58,14 +59,19 @@ def main(page: ft.Page) -> None:
     # ── event handlers ────────────────────────────────────────────────────────
     def do_auth(_) -> None:
         auth_btn.disabled = True
-        set_status("Autenticazione in corso… controlla il browser", "#FF9800")
+        if os.path.exists(CACHE_PATH):
+            set_status("Connessione in corso…", "#FF9800")
+        else:
+            set_status("Il browser Spotify si aprirà: clicca 'Accetta' per continuare", "#FF9800")
 
         def _run() -> None:
             try:
                 sp = create_client()
+                sp.me()  # prima chiamata API: qui si apre il browser se serve
                 state["sp"] = sp
+                set_status("Caricamento playlist…", "#FF9800")
                 _load_playlists(sp)
-                set_status("✓ Autenticato con successo!")
+                set_status("✓ Connesso con successo!")
             except Exception as exc:
                 set_status(f"Errore autenticazione: {exc}", "#F44336")
                 auth_btn.disabled = False
@@ -74,7 +80,6 @@ def main(page: ft.Page) -> None:
         threading.Thread(target=_run, daemon=True).start()
 
     def _load_playlists(sp) -> None:
-        set_status("Caricamento playlist…", "#FF9800")
         items: list[dict] = []
         results = sp.current_user_playlists()
         while results:
