@@ -1,6 +1,6 @@
 # Spotify Playlist Reorder
 
-A Python tool that reorders your Spotify playlists by artist, release date, popularity, BPM, energy, danceability, or valence — without touching the "date added" metadata. Comes with both an interactive CLI and a desktop GUI.
+A Python tool that reorders your Spotify playlists by artist, release date, popularity, BPM, energy, danceability, or valence — without touching the "date added" metadata. Runs on **Windows and macOS**. Comes with both an interactive CLI and a desktop GUI.
 
 ---
 
@@ -13,6 +13,9 @@ A Python tool that reorders your Spotify playlists by artist, release date, popu
 - **Progress bar** — real-time feedback via `tqdm` (CLI) or a progress indicator (GUI)
 - **Safe filtering** — automatically skips local files and podcast episodes
 - **Token caching** — re-uses the OAuth token so you only authenticate once
+- **User profile in GUI** — shows your Spotify avatar and display name after login
+- **Standalone executable** — package the GUI as a self-contained app (`build.py`) for Windows (`.exe`) or macOS (`.app`)
+- **Cross-platform** — all paths and browser handling work identically on Windows and macOS
 
 ---
 
@@ -25,6 +28,10 @@ spotify-playlist-reorder/
 ├── cli.py               # Interactive terminal interface
 ├── gui.py               # Desktop GUI built with Flet
 ├── reorder_playlist.py  # CLI entry point
+├── build.py             # Packages the GUI as a standalone executable
+├── create_icon.py       # Generates icon.png and icon.ico from code
+├── icon.png             # App icon 1024×1024 (used by macOS build)
+├── icon.ico             # App icon multi-size (used by Windows build)
 ├── requirements.txt
 ├── .env                 # Spotify credentials (never commit this)
 └── tests/
@@ -61,8 +68,10 @@ cd spotify-playlist-reorder
 
 # Create and activate a virtual environment
 python -m venv spotify-env
+
 # Windows
 spotify-env\Scripts\activate
+
 # macOS / Linux
 source spotify-env/bin/activate
 
@@ -114,10 +123,29 @@ python gui.py
 
 A dark-themed desktop window opens where you can:
 
-1. Click **Connetti a Spotify** to authenticate.
+1. Click **Connetti a Spotify** to authenticate. Your Spotify avatar and display name will appear in the header.
 2. Tick the playlists you want to reorder (or use **Seleziona tutto** / **Deseleziona tutto**).
-3. Pick a sorting criterion from the dropdown.
-4. Click **Riordina selezionate** and watch the progress indicator.
+3. Filter playlists by name using the search bar.
+4. Pick a sorting criterion from the dropdown.
+5. Click **Riordina** and watch the progress bar.
+
+---
+
+## Building a Standalone Executable
+
+`build.py` packages the GUI into a self-contained app using `flet pack` (bundled with Flet). No Python installation is required on the target machine.
+
+```bash
+# Windows → produces dist/SpotifyPlaylistReorder.exe
+python build.py
+
+# macOS  → produces dist/SpotifyPlaylistReorder.app
+python build.py
+```
+
+After the build, copy your `.env` file into the same folder as the `.exe` (Windows) or next to the `.app` bundle (macOS) before launching.
+
+> **Icon:** the app icon is pre-built (`icon.ico` / `icon.png`). To regenerate it after design changes, run `python create_icon.py`.
 
 ---
 
