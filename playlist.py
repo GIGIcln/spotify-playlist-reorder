@@ -157,12 +157,19 @@ def _reorder_with_retry(sp: Spotify, playlist_id: str, max_retries: int = 5, **k
                 raise
 
 
-def applica_riordinamento(sp: Spotify, playlist_id: str, target_order: list[int]) -> int:
+def applica_riordinamento(
+    sp: Spotify,
+    playlist_id: str,
+    target_order: list[int],
+    on_progress=None,
+) -> int:
+    """Reorder playlist tracks. on_progress(done, total) is called after each step."""
     current_order = list(range(len(target_order)))
     snapshot_id = None
     moves = 0
+    total = len(target_order)
 
-    with tqdm(total=len(target_order), desc="Riordinamento", unit="pos") as pbar:
+    with tqdm(total=total, desc="Riordinamento", unit="pos") as pbar:
         for i, orig_idx in enumerate(target_order):
             current_pos = current_order.index(orig_idx)
             if current_pos != i:
@@ -181,6 +188,8 @@ def applica_riordinamento(sp: Spotify, playlist_id: str, target_order: list[int]
                 current_order.insert(i, item)
             pbar.update(1)
             pbar.set_postfix(spostamenti=moves)
+            if on_progress:
+                on_progress(i + 1, total)
 
     return moves
 
