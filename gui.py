@@ -23,7 +23,7 @@ def main(page: ft.Page) -> None:
     # ── widgets ──────────────────────────────────────────────────────────────
     heading = ft.Text("Spotify Playlist Reorder", size=26, weight=ft.FontWeight.BOLD)
     status_text = ft.Text("", size=13)
-    auth_btn = ft.ElevatedButton("Connetti a Spotify")
+    auth_btn = ft.FilledButton("Connetti a Spotify")
 
     select_all_btn = ft.TextButton("Seleziona tutto", visible=False)
     deselect_all_btn = ft.TextButton("Deseleziona tutto", visible=False)
@@ -38,7 +38,7 @@ def main(page: ft.Page) -> None:
         visible=False,
     )
 
-    reorder_btn = ft.ElevatedButton("Riordina selezionate", disabled=True, visible=False)
+    reorder_btn = ft.FilledButton("Riordina selezionate", disabled=True, visible=False)
     progress_bar = ft.ProgressBar(width=460, visible=False)
     progress_label = ft.Text("", size=12)
 
@@ -184,4 +184,4 @@ def main(page: ft.Page) -> None:
 
 
 if __name__ == "__main__":
-    ft.app(target=main)
+    ft.run(main)
