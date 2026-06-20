@@ -1,12 +1,17 @@
 import os
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
+from dotenv import load_dotenv
 
+load_dotenv()
 
-# 1. CREDENZIALI (inserite direttamente, senza variabili d'ambiente)
-CLIENT_ID = "43cb1c95f8134343926d894ec86c651b"
-CLIENT_SECRET = "e9c2e0e14a00442399d05b3c0eb9d975"
-REDIRECT_URI = "http://127.0.0.1:8888/callback"
+CLIENT_ID = os.getenv("SPOTIPY_CLIENT_ID")
+CLIENT_SECRET = os.getenv("SPOTIPY_CLIENT_SECRET")
+REDIRECT_URI = os.getenv("SPOTIPY_REDIRECT_URI", "http://127.0.0.1:8888/callback")
+
+if not CLIENT_ID or not CLIENT_SECRET:
+    print("❌ Credenziali mancanti. Verifica il file .env")
+    exit(1)
 
 # 2. PERMESSI
 SCOPE = "playlist-read-private playlist-read-collaborative playlist-modify-public playlist-modify-private"
@@ -93,27 +98,22 @@ def riordina_playlist(playlist_url):
     print("⏳ Download dei brani e metadati in corso...")
 
     tracks_data = []
-    
-    # Scarica tutti i dati della playlist
+
     results = sp.playlist_items(playlist_id, additional_types=['track'])
-    
+
     while results:
         for entry in results['items']:
-            # 🔧 CORREZIONE: Spotify ora usa 'item' invece di 'track'
-            # Controlla entrambi i formati per compatibilità
             content = entry.get('item') or entry.get('track')
-            
+
             if content is None:
-                continue  # Salta elementi vuoti
-            
-            # Accetta solo brani musicali, non podcast/episodi
+                continue
+
             if content.get('type') != 'track':
                 continue
-                
-            # Salta tracce locali (file sul tuo PC non accessibili via API)
+
             if content.get('is_local', False):
                 continue
-                
+
             if not content.get('uri'):
                 continue
 
@@ -135,30 +135,84 @@ def riordina_playlist(playlist_url):
         print("💡 Controlla che la playlist contenga canzoni (non podcast) e che non siano file locali.")
         return
 
-    print(f"🎵 Trovati {len(tracks_data)} brani. Ordinamento in corso...")
+    print(f"🎵 Trovati {len(tracks_data)} brani. Calcolo dell'ordine in corso...")
 
-    # 🔄 LOGICA DI RIORDINAMENTO (i tuoi 3 criteri)
-    tracks_data.sort(key=lambda t: (
-        t['artista'],           # 1️⃣ Ordine alfabetico artista
-        t['data_uscita'],       # 2️⃣ Data di uscita
-        t['posizione_album']    # 3️⃣ Ordine nell'album originale
+    # Ordina mantenendo l'indice originale per gestire i duplicati
+    indexed = list(enumerate(tracks_data))
+    indexed_sorted = sorted(indexed, key=lambda x: (
+        x[1]['artista'],
+        x[1]['data_uscita'],
+        x[1]['posizione_album']
     ))
 
-    nuovo_ordine = [t['uri'] for t in tracks_data]
+    target_order = [orig_idx for orig_idx, _ in indexed_sorted]
+    current_order = list(range(len(tracks_data)))
 
-    print("💾 Salvataggio su Spotify...")
-    try:
-        if len(nuovo_ordine) > 100:
-            # Gestione playlist lunghe (>100 brani)
-            sp.playlist_replace_items(playlist_id, [])
-            for i in range(0, len(nuovo_ordine), 100):
-                sp.playlist_add_items(playlist_id, nuovo_ordine[i:i+100])
-        else:
-            sp.playlist_replace_items(playlist_id, nuovo_ordine)
-        print("✅ Playlist riordinata con successo!")
-    except Exception as e:
-        print(f"❌ Errore: {e}")
+    if target_order == current_order:
+        print("✅ La playlist è già nell'ordine corretto. Nessuna modifica necessaria.")
+        return
+
+    print("💾 Riordinamento su Spotify in corso (date di aggiunta preservate)...")
+
+    snapshot_id = None
+    moves = 0
+
+    for i, orig_idx in enumerate(target_order):
+        current_pos = current_order.index(orig_idx)
+        if current_pos == i:
+            continue
+
+        # Se sposto indietro: insert_before=i; se sposto avanti: insert_before=i+1
+        insert_before = i if current_pos > i else i + 1
+
+        try:
+            result = sp.playlist_reorder_items(
+                playlist_id,
+                range_start=current_pos,
+                insert_before=insert_before,
+                range_length=1,
+                snapshot_id=snapshot_id
+            )
+            snapshot_id = result.get('snapshot_id')
+            moves += 1
+            item = current_order.pop(current_pos)
+            current_order.insert(i, item)
+        except Exception as e:
+            print(f"❌ Errore durante il riordinamento alla posizione {i}: {e}")
+            return
+
+    print(f"✅ Playlist riordinata con successo! ({moves} spostamenti effettuati)")
+
+def scegli_playlist():
+    print("📋 Caricamento delle tue playlist...")
+    playlists = []
+    results = sp.current_user_playlists()
+    while results:
+        for item in results['items']:
+            if item:
+                playlists.append({'name': item['name'], 'id': item['id'], 'tracks': item['tracks']['total']})
+        results = sp.next(results) if results.get('next') else None
+
+    if not playlists:
+        print("❌ Nessuna playlist trovata nel tuo account.")
+        exit(1)
+
+    print(f"\n{'N°':<5} {'Playlist':<50} {'Brani':>6}")
+    print("-" * 63)
+    for i, p in enumerate(playlists, 1):
+        nome = p['name'][:48] + ".." if len(p['name']) > 50 else p['name']
+        print(f"{i:<5} {nome:<50} {p['tracks']:>6}")
+
+    print()
+    while True:
+        try:
+            scelta = int(input(f"Scegli una playlist (1-{len(playlists)}): "))
+            if 1 <= scelta <= len(playlists):
+                return playlists[scelta - 1]['id']
+            print(f"⚠️  Inserisci un numero tra 1 e {len(playlists)}.")
+        except ValueError:
+            print("⚠️  Inserisci un numero valido.")
 
 if __name__ == "__main__":
-    link = input("🔗 Incolla il link della playlist Spotify: ")
-    riordina_playlist(link)
+    playlist_id = scegli_playlist()
+    riordina_playlist("https://open.spotify.com/playlist/" + playlist_id)
