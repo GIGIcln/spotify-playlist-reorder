@@ -1,5 +1,5 @@
 from auth import create_client
-from playlist import riordina_playlist
+from playlist import riordina_playlist, CRITERI_ORDINAMENTO
 
 
 def scegli_playlist(sp) -> str:
@@ -37,6 +37,26 @@ def scegli_playlist(sp) -> str:
             print("⚠️  Inserisci un numero valido.")
 
 
+def scegli_criterio() -> dict:
+    print(f"\n{'N°':<5} {'Criterio di ordinamento'}")
+    print("-" * 55)
+    for i, c in enumerate(CRITERI_ORDINAMENTO, 1):
+        default = " (default)" if i == 1 else ""
+        print(f"{i:<5} {c['label']}{default}")
+    print()
+    while True:
+        raw = input(f"Scegli criterio (1-{len(CRITERI_ORDINAMENTO)}, invio per default): ").strip()
+        if raw == "":
+            return CRITERI_ORDINAMENTO[0]
+        try:
+            scelta = int(raw)
+            if 1 <= scelta <= len(CRITERI_ORDINAMENTO):
+                return CRITERI_ORDINAMENTO[scelta - 1]
+            print(f"⚠️  Inserisci un numero tra 1 e {len(CRITERI_ORDINAMENTO)}.")
+        except ValueError:
+            print("⚠️  Inserisci un numero valido.")
+
+
 def main() -> None:
     print("⏳ Avvio procedura di autenticazione Spotify...")
     print("🌐 Il browser dovrebbe aprirsi automaticamente a breve.\n")
@@ -50,7 +70,8 @@ def main() -> None:
     print("✅ Autenticazione completata con successo!\n")
 
     playlist_id = scegli_playlist(sp)
-    riordina_playlist(sp, "https://open.spotify.com/playlist/" + playlist_id)
+    criterio = scegli_criterio()
+    riordina_playlist(sp, "https://open.spotify.com/playlist/" + playlist_id, criterio)
 
 
 if __name__ == "__main__":

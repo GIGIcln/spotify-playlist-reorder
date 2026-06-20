@@ -1,5 +1,35 @@
 from spotipy import Spotify
 
+CRITERI_ORDINAMENTO = [
+    {
+        "label": "Artista → Data → Posizione (attuale)",
+        "key": lambda t: (t["artista"], t["data_uscita"], t["posizione_album"]),
+        "reverse": False,
+    },
+    {
+        "label": "Data di uscita (dal più vecchio)",
+        "key": lambda t: t["data_uscita"],
+        "reverse": False,
+    },
+    {
+        "label": "Data di uscita (dal più recente)",
+        "key": lambda t: t["data_uscita"],
+        "reverse": True,
+    },
+    {
+        "label": "Artista (A→Z)",
+        "key": lambda t: t["artista"],
+        "reverse": False,
+    },
+    {
+        "label": "Popolarità (dal più popolare)",
+        "key": lambda t: t.get("popularity", 0),
+        "reverse": True,
+    },
+]
+
+DEFAULT_CRITERIO = CRITERI_ORDINAMENTO[0]
+
 
 def estrai_playlist_id(url: str) -> str:
     return url.split("/")[-1].split("?")[0]
@@ -33,6 +63,7 @@ def fetch_tracks(sp: Spotify, playlist_id: str) -> list[dict]:
                     "data_uscita": normalizza_data(content["album"]["release_date"])
                                    if content.get("album") else "9999-99-99",
                     "posizione_album": content.get("track_number", 0),
+                    "popularity": content.get("popularity", 0),
                 })
             except Exception as e:
                 print(f"⚠️ Traccia ignorata: {e}")
@@ -40,13 +71,15 @@ def fetch_tracks(sp: Spotify, playlist_id: str) -> list[dict]:
     return tracks
 
 
-def calcola_ordine_target(tracks: list[dict]) -> list[int]:
+def calcola_ordine_target(tracks: list[dict], criterio: dict = None) -> list[int]:
+    if criterio is None:
+        criterio = DEFAULT_CRITERIO
     indexed = list(enumerate(tracks))
-    indexed_sorted = sorted(indexed, key=lambda x: (
-        x[1]["artista"],
-        x[1]["data_uscita"],
-        x[1]["posizione_album"],
-    ))
+    indexed_sorted = sorted(
+        indexed,
+        key=lambda x: criterio["key"](x[1]),
+        reverse=criterio["reverse"],
+    )
     return [orig_idx for orig_idx, _ in indexed_sorted]
 
 
@@ -75,7 +108,7 @@ def applica_riordinamento(sp: Spotify, playlist_id: str, target_order: list[int]
     return moves
 
 
-def riordina_playlist(sp: Spotify, playlist_url: str) -> None:
+def riordina_playlist(sp: Spotify, playlist_url: str, criterio: dict = None) -> None:
     playlist_id = estrai_playlist_id(playlist_url)
     print("⏳ Download dei brani e metadati in corso...")
 
@@ -88,7 +121,7 @@ def riordina_playlist(sp: Spotify, playlist_url: str) -> None:
 
     print(f"🎵 Trovati {len(tracks)} brani. Calcolo dell'ordine in corso...")
 
-    target_order = calcola_ordine_target(tracks)
+    target_order = calcola_ordine_target(tracks, criterio)
     if target_order == list(range(len(tracks))):
         print("✅ La playlist è già nell'ordine corretto. Nessuna modifica necessaria.")
         return
