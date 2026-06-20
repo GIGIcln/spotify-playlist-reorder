@@ -1,5 +1,7 @@
 import os
+import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from spotipy import Spotify
@@ -13,11 +15,31 @@ SCOPE = (
     "playlist-modify-private"
 )
 
-CACHE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".spotify_token_cache")
+
+def _get_app_dir() -> str:
+    """Return the directory where .env and token cache live.
+
+    - Bundled on Windows/Linux: directory containing the executable.
+    - Bundled on macOS: directory containing the .app bundle.
+    - Running from source: directory containing this file.
+    """
+    if hasattr(sys, "frozen"):
+        exe = Path(sys.executable)
+        if sys.platform == "darwin":
+            # Walk up until we find the .app bundle, then return its parent.
+            p = exe
+            while p.suffix != ".app" and p.parent != p:
+                p = p.parent
+            return str(p.parent if p.suffix == ".app" else exe.parent)
+        return str(exe.parent)
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+CACHE_PATH = os.path.join(_get_app_dir(), ".spotify_token_cache")
 
 
 def _build_oauth(open_browser: bool = False, show_dialog: bool = False) -> SpotifyOAuth:
-    load_dotenv()
+    load_dotenv(dotenv_path=os.path.join(_get_app_dir(), ".env"), override=False)
     client_id = os.getenv("SPOTIPY_CLIENT_ID")
     client_secret = os.getenv("SPOTIPY_CLIENT_SECRET")
     redirect_uri = os.getenv("SPOTIPY_REDIRECT_URI", "http://127.0.0.1:8888/callback")

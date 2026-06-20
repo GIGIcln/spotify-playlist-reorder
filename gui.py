@@ -1,6 +1,7 @@
 import os
 import time
 import threading
+import webbrowser
 import flet as ft
 
 from urllib.parse import urlparse
@@ -194,6 +195,26 @@ def main(page: ft.Page) -> None:
         style=_btn_style,
     )
 
+    # ── user profile ─────────────────────────────────────────────────────────
+    _avatar = ft.Image(
+        src="",
+        width=28,
+        height=28,
+        border_radius=14,
+        fit=ft.ImageFit.COVER,
+        visible=False,
+    )
+    _avatar_fallback = ft.Container(
+        content=ft.Icon(ft.Icons.PERSON, color=_MUTED, size=16),
+        width=28,
+        height=28,
+        border_radius=14,
+        bgcolor=_CARD,
+        visible=False,
+        alignment=ft.alignment.center,
+    )
+    _user_label = ft.Text("", size=13, color="white", weight=ft.FontWeight.W_500, visible=False)
+
     # ── progress ──────────────────────────────────────────────────────────────
     _ring = ft.ProgressRing(width=18, height=18, stroke_width=2, color=_GREEN, visible=False)
     _prog_label = ft.Text("", size=12, color=_MUTED)
@@ -218,15 +239,25 @@ def main(page: ft.Page) -> None:
                     auth_url = oauth.get_authorize_url()
                     port = urlparse(oauth.redirect_uri).port or 8888
                     set_status("Il browser si aprirà: clicca 'Accetta' per continuare", "warn")
-                    os.startfile(auth_url)
+                    webbrowser.open(auth_url)
                     code = wait_for_oauth_callback(port)
                     oauth.get_access_token(code, as_dict=False)
                 else:
                     set_status("Connessione in corso…", "warn")
 
                 sp = Spotify(auth_manager=oauth)
-                sp.me()
+                me = sp.me()
                 state["sp"] = sp
+                images = (me.get("images") or [])
+                if images:
+                    _avatar.src = images[0]["url"]
+                    _avatar.visible = True
+                    _avatar_fallback.visible = False
+                else:
+                    _avatar.visible = False
+                    _avatar_fallback.visible = True
+                _user_label.value = me.get("display_name") or me.get("id", "")
+                _user_label.visible = True
                 set_status("Caricamento playlist…", "warn")
                 _load_playlists(sp)
                 set_status("Connesso")
@@ -339,6 +370,9 @@ def main(page: ft.Page) -> None:
         _list.controls.clear()
         for w in (_sel_all, _desel_all, _counter, _criteria, _reorder_btn, _search, _switch_btn):
             w.visible = False
+        _avatar.visible = False
+        _avatar_fallback.visible = False
+        _user_label.visible = False
         _auth_btn.visible = True
         _auth_btn.disabled = False
         _dot.bgcolor = _BORDER
@@ -370,7 +404,7 @@ def main(page: ft.Page) -> None:
                     spacing=10,
                 ),
                 ft.Row(
-                    [_dot, _status, _auth_btn, _switch_btn],
+                    [_dot, _status, _avatar_fallback, _avatar, _user_label, _auth_btn, _switch_btn],
                     spacing=10,
                     vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 ),
