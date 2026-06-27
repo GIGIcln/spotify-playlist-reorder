@@ -2,6 +2,14 @@
 settings.json
 .env
 .cache
+.spotify_token_cache
+
+# Build artifacts
+build/
+dist/
+
+# Log
+*.txt
 
 # Ambiente virtuale
 spotify-env/
