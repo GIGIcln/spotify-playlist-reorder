@@ -28,6 +28,19 @@ def _parse_selezione(raw: str, n: int) -> list[int] | None:
     return [i for i in indices if not (i in seen or seen.add(i))]
 
 
+def _totale_brani(item: dict) -> int:
+    """Numero di brani della playlist, robusto al cambio di schema Spotify.
+
+    L'endpoint restituisce il totale sotto 'tracks' (schema classico) oppure
+    sotto 'items' (nuovo schema), con l'altro campo a None.
+    """
+    for chiave in ("tracks", "items"):
+        campo = item.get(chiave)
+        if isinstance(campo, dict) and campo.get("total") is not None:
+            return campo["total"]
+    return 0
+
+
 def scegli_playlist(sp) -> list[str]:
     print("📋 Caricamento delle tue playlist...")
     playlists = []
@@ -38,7 +51,7 @@ def scegli_playlist(sp) -> list[str]:
                 playlists.append({
                     "name": item["name"],
                     "id": item["id"],
-                    "tracks": (item.get("tracks") or {}).get("total", 0),
+                    "tracks": _totale_brani(item),
                 })
         results = sp.next(results) if results.get("next") else None
 

@@ -2,9 +2,24 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from cli import _parse_selezione
+from cli import _parse_selezione, _totale_brani
 
 N = 10
+
+
+class TestTotaleBrani:
+    def test_schema_classico_tracks(self):
+        assert _totale_brani({"tracks": {"total": 42}}) == 42
+
+    def test_schema_nuovo_items(self):
+        # Spotify può restituire tracks=None e il totale sotto 'items'
+        assert _totale_brani({"tracks": None, "items": {"href": "x", "total": 5}}) == 5
+
+    def test_entrambi_assenti(self):
+        assert _totale_brani({"tracks": None, "items": None}) == 0
+
+    def test_chiavi_mancanti(self):
+        assert _totale_brani({}) == 0
 
 
 class TestParseSelezione:
