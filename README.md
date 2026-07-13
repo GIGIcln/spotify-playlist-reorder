@@ -64,6 +64,29 @@ Flusso interattivo:
 4. Scegli il criterio di ordinamento.
 5. Vedi l'**anteprima** dei primi brani nel nuovo ordine e **confermi** (`s/N`) prima di applicare.
 
+### Comando globale (senza attivare il venv)
+
+Il comando `spotify-reorder` installato nel venv ha uno shebang che punta al
+Python del venv, quindi funziona anche senza attivarlo. Basta renderlo
+raggiungibile dal `PATH`.
+
+**Opzione A — symlink** (macOS / Linux; `~/.local/bin` di solito è già nel `PATH`):
+
+```bash
+ln -sf "$(pwd)/spotify-env/bin/spotify-reorder" ~/.local/bin/spotify-reorder
+```
+
+**Opzione B — alias** (aggiungi a `~/.zshrc` o `~/.bashrc`):
+
+```bash
+alias spotify-reorder="/percorso/assoluto/spotify-playlist-reorder/spotify-env/bin/spotify-reorder"
+```
+
+Dopo l'una o l'altra, puoi digitare `spotify-reorder` da qualsiasi cartella,
+in un terminale nuovo, senza `source spotify-env/bin/activate`. Il file `.env`
+viene comunque cercato nella cartella del progetto. Se ricrei il venv o sposti
+la cartella, rifai il symlink/alias.
+
 ## Criteri di ordinamento
 
 | # | Criterio | Audio-feature |
