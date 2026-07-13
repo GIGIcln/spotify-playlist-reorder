@@ -18,4 +18,4 @@ dependencies = [
 spotify-reorder = "cli:main"
 
 [tool.setuptools]
-py-modules = ["cli", "auth", "playlist", "reorder_playlist"]
+py-modules = ["cli", "auth", "playlist", "colori", "reorder_playlist"]

@@ -1,6 +1,7 @@
 import time
 from spotipy import Spotify
 from tqdm import tqdm
+from colori import bold, dim, cyan, verde, giallo
 
 CRITERI_ORDINAMENTO = [
     {
@@ -215,13 +216,13 @@ def verifica_proprietario(sp: Spotify, playlist_id: str, me_id: str) -> tuple[bo
 def _mostra_anteprima(tracks: list[dict], target_order: list[int], quanti: int = 10) -> None:
     """Stampa i primi brani nell'ordine risultante."""
     mostrati = min(quanti, len(target_order))
-    print(f"\n🔎 Anteprima del nuovo ordine (primi {mostrati} di {len(target_order)}):")
+    print("\n" + bold(cyan(f"  Anteprima del nuovo ordine")) + dim(f"  (primi {mostrati} di {len(target_order)})") + "\n")
     for pos, orig_idx in enumerate(target_order[:quanti], 1):
         t = tracks[orig_idx]
         anno = str(t.get("data_uscita", ""))[:4]
-        print(f"   {pos:>2}. {t.get('artista', '?')} — {t.get('nome', '?')} ({anno})")
+        print(f"  {dim(f'{pos:>2}.')} {t.get('artista', '?')} — {t.get('nome', '?')} {dim(f'({anno})')}")
     if len(target_order) > quanti:
-        print(f"   ... e altri {len(target_order) - quanti} brani")
+        print(dim(f"   ... e altri {len(target_order) - quanti} brani"))
 
 
 def _conferma_interattiva(prompt: str) -> bool:
@@ -243,8 +244,8 @@ def riordina_playlist(
     if me_id is not None:
         modificabile, dettaglio = verifica_proprietario(sp, playlist_id, me_id)
         if not modificabile:
-            print(f"⚠️  Salto: {dettaglio}.")
-            print("   Non hai i permessi per riordinarla (Spotify risponderebbe 403 Forbidden).")
+            print(giallo(f"⚠️  Salto: {dettaglio}."))
+            print(dim("   Non hai i permessi per riordinarla (Spotify risponderebbe 403 Forbidden)."))
             return
 
     print("⏳ Download dei brani e metadati in corso...")
@@ -268,13 +269,13 @@ def riordina_playlist(
 
     if chiedi_conferma:
         _mostra_anteprima(tracks, target_order)
-        if not _conferma_interattiva("\n❓ Applicare questo ordine alla playlist? (s/N): "):
-            print("↩️  Operazione annullata, la playlist non è stata modificata.")
+        if not _conferma_interattiva(f"\n{giallo('›')} Applicare questo ordine alla playlist? {dim('(s/N)')}: "):
+            print(dim("↩️  Operazione annullata, la playlist non è stata modificata."))
             return
 
-    print("💾 Riordinamento su Spotify in corso (date di aggiunta preservate)...")
+    print("💾 Riordinamento su Spotify in corso " + dim("(date di aggiunta preservate)") + "...")
     try:
         moves = applica_riordinamento(sp, playlist_id, target_order)
-        print(f"✅ Playlist riordinata con successo! ({moves} spostamenti effettuati)")
+        print(verde(f"✅ Playlist riordinata con successo!") + dim(f" ({moves} spostamenti effettuati)"))
     except Exception as e:
-        print(f"❌ Errore durante il riordinamento: {e}")
+        print(giallo(f"❌ Errore durante il riordinamento: {e}"))
