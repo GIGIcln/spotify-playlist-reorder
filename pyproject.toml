@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "spotify-reorder"
+version = "1.0.0"
+description = "Riordina le tue playlist Spotify da terminale."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "spotipy>=2.23.0",
+    "python-dotenv>=1.0.0",
+    "tqdm>=4.0.0",
+]
+
+[project.scripts]
+spotify-reorder = "cli:main"
+
+[tool.setuptools]
+py-modules = ["cli", "auth", "playlist", "reorder_playlist"]
