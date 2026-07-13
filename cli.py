@@ -94,13 +94,21 @@ def main() -> None:
 
     print("✅ Autenticazione completata con successo!\n")
 
+    me_id = sp.current_user()["id"]
+
     playlist_ids = scegli_playlist(sp)
     criterio = scegli_criterio()
 
     for i, playlist_id in enumerate(playlist_ids, 1):
         if len(playlist_ids) > 1:
             print(f"\n▶ Playlist {i}/{len(playlist_ids)}")
-        riordina_playlist(sp, "https://open.spotify.com/playlist/" + playlist_id, criterio)
+        riordina_playlist(
+            sp,
+            "https://open.spotify.com/playlist/" + playlist_id,
+            criterio,
+            me_id=me_id,
+            chiedi_conferma=True,
+        )
 
 
 if __name__ == "__main__":

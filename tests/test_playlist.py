@@ -10,6 +10,8 @@ from playlist import (
     calcola_ordine_target,
     enrich_with_audio_features,
     _reorder_with_retry,
+    verifica_proprietario,
+    _mostra_anteprima,
     CRITERI_ORDINAMENTO,
 )
 
@@ -333,3 +335,45 @@ class TestReorderWithRetry:
         with patch("playlist.time.sleep") as mock_sleep:
             _reorder_with_retry(sp, "pid", range_start=0, insert_before=1, range_length=1)
         mock_sleep.assert_called_once_with(5)
+
+
+class TestVerificaProprietario:
+    def test_playlist_di_proprieta(self):
+        sp = MagicMock()
+        sp.playlist.return_value = {"name": "Mia", "owner": {"id": "me"}, "collaborative": False}
+        ok, dettaglio = verifica_proprietario(sp, "pid", "me")
+        assert ok is True
+        assert dettaglio == "Mia"
+
+    def test_playlist_di_altri_non_modificabile(self):
+        sp = MagicMock()
+        sp.playlist.return_value = {"name": "Altrui", "owner": {"id": "spotify"}, "collaborative": False}
+        ok, dettaglio = verifica_proprietario(sp, "pid", "me")
+        assert ok is False
+        assert "non tua" in dettaglio
+
+    def test_playlist_collaborativa_modificabile(self):
+        sp = MagicMock()
+        sp.playlist.return_value = {"name": "Team", "owner": {"id": "altro"}, "collaborative": True}
+        ok, _ = verifica_proprietario(sp, "pid", "me")
+        assert ok is True
+
+    def test_errore_api_non_modificabile(self):
+        sp = MagicMock()
+        sp.playlist.side_effect = Exception("boom")
+        ok, dettaglio = verifica_proprietario(sp, "pid", "me")
+        assert ok is False
+        assert "impossibile leggere" in dettaglio
+
+
+class TestMostraAnteprima:
+    def test_anteprima_usa_ordine_target(self, capsys):
+        tracks = [
+            {"artista": "zeta", "nome": "Z", "data_uscita": "2020-01-01"},
+            {"artista": "alpha", "nome": "A", "data_uscita": "2019-06-01"},
+        ]
+        _mostra_anteprima(tracks, [1, 0])
+        out = capsys.readouterr().out
+        # il primo brano mostrato deve essere quello in testa a target_order (alpha)
+        assert out.index("alpha") < out.index("zeta")
+        assert "(2019)" in out

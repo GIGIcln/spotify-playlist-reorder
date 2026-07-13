@@ -90,6 +90,7 @@ def fetch_tracks(sp: Spotify, playlist_id: str) -> list[dict]:
             try:
                 tracks.append({
                     "uri": content["uri"],
+                    "nome": content.get("name", "Sconosciuto"),
                     "artista": content["artists"][0]["name"].strip().lower()
                                if content.get("artists") else "zzz_unknown",
                     "data_uscita": normalizza_data(content["album"]["release_date"])
@@ -194,12 +195,59 @@ def applica_riordinamento(
     return moves
 
 
-def riordina_playlist(sp: Spotify, playlist_url: str, criterio: dict = None) -> None:
+def verifica_proprietario(sp: Spotify, playlist_id: str, me_id: str) -> tuple[bool, str]:
+    """Controlla se l'utente può modificare la playlist.
+
+    Ritorna (modificabile, dettaglio): se True, `dettaglio` è il nome della
+    playlist; se False, è il motivo per cui non è modificabile.
+    """
+    try:
+        info = sp.playlist(playlist_id, fields="name,owner.id,collaborative")
+    except Exception as e:
+        return False, f"impossibile leggere la playlist ({e})"
+    nome = info.get("name", "")
+    owner = (info.get("owner") or {}).get("id")
+    if owner == me_id or info.get("collaborative", False):
+        return True, nome
+    return False, f"la playlist \"{nome}\" è di '{owner}', non tua e non collaborativa"
+
+
+def _mostra_anteprima(tracks: list[dict], target_order: list[int], quanti: int = 10) -> None:
+    """Stampa i primi brani nell'ordine risultante."""
+    mostrati = min(quanti, len(target_order))
+    print(f"\n🔎 Anteprima del nuovo ordine (primi {mostrati} di {len(target_order)}):")
+    for pos, orig_idx in enumerate(target_order[:quanti], 1):
+        t = tracks[orig_idx]
+        anno = str(t.get("data_uscita", ""))[:4]
+        print(f"   {pos:>2}. {t.get('artista', '?')} — {t.get('nome', '?')} ({anno})")
+    if len(target_order) > quanti:
+        print(f"   ... e altri {len(target_order) - quanti} brani")
+
+
+def _conferma_interattiva(prompt: str) -> bool:
+    return input(prompt).strip().lower() in ("s", "si", "sì", "y", "yes")
+
+
+def riordina_playlist(
+    sp: Spotify,
+    playlist_url: str,
+    criterio: dict = None,
+    me_id: str = None,
+    chiedi_conferma: bool = False,
+) -> None:
     if criterio is None:
         criterio = DEFAULT_CRITERIO
     playlist_id = estrai_playlist_id(playlist_url)
-    print("⏳ Download dei brani e metadati in corso...")
 
+    # Controllo proprietario: evita l'errore 403 grezzo su playlist non tue.
+    if me_id is not None:
+        modificabile, dettaglio = verifica_proprietario(sp, playlist_id, me_id)
+        if not modificabile:
+            print(f"⚠️  Salto: {dettaglio}.")
+            print("   Non hai i permessi per riordinarla (Spotify risponderebbe 403 Forbidden).")
+            return
+
+    print("⏳ Download dei brani e metadati in corso...")
     tracks = fetch_tracks(sp, playlist_id)
 
     if not tracks:
@@ -217,6 +265,12 @@ def riordina_playlist(sp: Spotify, playlist_url: str, criterio: dict = None) -> 
     if target_order == list(range(len(tracks))):
         print("✅ La playlist è già nell'ordine corretto. Nessuna modifica necessaria.")
         return
+
+    if chiedi_conferma:
+        _mostra_anteprima(tracks, target_order)
+        if not _conferma_interattiva("\n❓ Applicare questo ordine alla playlist? (s/N): "):
+            print("↩️  Operazione annullata, la playlist non è stata modificata.")
+            return
 
     print("💾 Riordinamento su Spotify in corso (date di aggiunta preservate)...")
     try:
