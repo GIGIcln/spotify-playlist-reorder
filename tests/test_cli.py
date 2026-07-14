@@ -112,6 +112,12 @@ class TestParseArgs:
         assert _parse_args(["--backup"]).backup is True
         assert _parse_args(["--restore", "f.json"]).restore == "f.json"
 
+    def test_no_browser_e_backup_before(self):
+        a = _parse_args([])
+        assert a.no_browser is False and a.backup_before is False
+        a2 = _parse_args(["--no-browser", "--backup-before"])
+        assert a2.no_browser is True and a2.backup_before is True
+
     def test_backup_e_restore_mutuamente_esclusivi(self):
         with pytest.raises(SystemExit):
             _parse_args(["--backup", "--restore", "f.json"])
@@ -209,6 +215,42 @@ class TestMain:
             main(["-p", "PL1", "--backup"])
         m_eb.assert_called_once()
         m_rp.assert_not_called()
+
+    def test_no_browser_passato_ad_auth(self):
+        sp = MagicMock()
+        sp.current_user.return_value = {"id": "me"}
+        with patch("cli.create_client", return_value=sp) as m_client, \
+             patch("cli.riordina_playlist"):
+            main(["-p", "PL1", "--no-browser", "-y"])
+        m_client.assert_called_once_with(open_browser=False)
+
+    def test_default_apre_browser(self):
+        sp = MagicMock()
+        sp.current_user.return_value = {"id": "me"}
+        with patch("cli.create_client", return_value=sp) as m_client, \
+             patch("cli.riordina_playlist"):
+            main(["-p", "PL1", "-y"])
+        m_client.assert_called_once_with(open_browser=True)
+
+    def test_backup_before_backup_poi_riordina(self):
+        sp = MagicMock()
+        sp.current_user.return_value = {"id": "me"}
+        with patch("cli.create_client", return_value=sp), \
+             patch("cli.esporta_backup", return_value="/x/bk.json") as m_eb, \
+             patch("cli.riordina_playlist") as m_rp:
+            main(["-p", "PL1", "--backup-before", "-y"])
+        m_eb.assert_called_once()
+        m_rp.assert_called_once()
+
+    def test_backup_before_saltato_in_dry_run(self):
+        sp = MagicMock()
+        sp.current_user.return_value = {"id": "me"}
+        with patch("cli.create_client", return_value=sp), \
+             patch("cli.esporta_backup") as m_eb, \
+             patch("cli.riordina_playlist") as m_rp:
+            main(["-p", "PL1", "--backup-before", "--dry-run"])
+        m_eb.assert_not_called()
+        m_rp.assert_called_once()
 
     def test_keyboardinterrupt_uscita_pulita(self):
         with patch("cli._esegui", side_effect=KeyboardInterrupt), \

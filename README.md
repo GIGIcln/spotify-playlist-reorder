@@ -109,6 +109,8 @@ spotify-reorder --lista-criteri
 | `--dry-run` | Mostra l'anteprima del nuovo ordine senza applicare modifiche. |
 | `--backup` | Salva l'ordine attuale della/e playlist in un file, senza riordinare. |
 | `--restore FILE` | Ripristina l'ordine di una playlist da un file di backup. |
+| `--backup-before` | Salva un backup prima di riordinare (rete di sicurezza). |
+| `--no-browser` | Non aprire mai il browser per l'auth (per esecuzioni programmate). |
 | `--lista-criteri` | Mostra i criteri disponibili ed esce. |
 
 ### Backup e ripristino
@@ -126,6 +128,45 @@ spotify-reorder --restore backups/37i9dQ...-20260714-101500.json
 
 Per prudenza il ripristino **si rifiuta se la playlist è cambiata** dal backup
 (brani aggiunti o rimossi): l'insieme dei brani deve combaciare esattamente.
+
+### Riordino automatico programmato (launchd)
+
+Puoi far riordinare una playlist **da sola**, su un orario, tramite `launchd`
+(lo scheduler nativo di macOS). Sfrutta la modalità non-interattiva:
+
+```
+spotify-reorder -p <URL> -c default --yes --no-browser --backup-before
+```
+
+- `--yes` non chiede conferma, `--no-browser` non apre mai il browser (se il
+  token non è rinnovabile in silenzio fallisce pulito, lasciando traccia nel log),
+  `--backup-before` salva l'ordine prima di riordinare, così puoi sempre fare
+  `--restore`.
+- **Prerequisito**: fai almeno un login interattivo (`spotify-reorder`) una volta,
+  così esiste un token in cache che i run automatici rinnovano da soli.
+
+Configurazione (esempio: il primo del mese alle 9:00):
+
+```bash
+# 1. Copia il template ed edita l'URL della playlist e (se vuoi) l'orario
+cp examples/com.gigi.spotify-reorder.plist ~/Library/LaunchAgents/
+
+# 2. Attivalo
+launchctl load ~/Library/LaunchAgents/com.gigi.spotify-reorder.plist
+
+# 3. Provalo subito (senza aspettare la data)
+launchctl start com.gigi.spotify-reorder
+
+# 4. Controlla com'è andata
+cat ~/Library/Logs/spotify-reorder.log
+
+# Per disattivarlo
+launchctl unload ~/Library/LaunchAgents/com.gigi.spotify-reorder.plist
+```
+
+Il file [`examples/com.gigi.spotify-reorder.plist`](examples/com.gigi.spotify-reorder.plist)
+contiene i dettagli. Nota: il Mac deve essere acceso all'orario previsto (se era
+spento/dormiente, `launchd` recupera l'esecuzione al risveglio).
 
 ### Comando globale (senza attivare il venv)
 

@@ -3,6 +3,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import pytest
+from unittest.mock import MagicMock
 import auth
 from spotipy.oauth2 import SpotifyPKCE
 
@@ -36,3 +37,16 @@ class TestBuildOauth:
 
         assert isinstance(mgr, SpotifyPKCE)
         assert not hasattr(mgr, "client_secret") or not mgr.client_secret
+
+
+class TestCreateClient:
+    def test_inoltra_open_browser(self, monkeypatch):
+        visto = {}
+
+        def fake_build(open_browser=True):
+            visto["open_browser"] = open_browser
+            return MagicMock()
+
+        monkeypatch.setattr(auth, "_build_oauth", fake_build)
+        auth.create_client(open_browser=False)
+        assert visto["open_browser"] is False

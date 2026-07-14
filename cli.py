@@ -152,6 +152,14 @@ def _parse_args(argv=None) -> argparse.Namespace:
         help="Mostra l'anteprima del nuovo ordine senza applicare modifiche.",
     )
     parser.add_argument(
+        "--backup-before", action="store_true",
+        help="Salva un backup dell'ordine attuale prima di riordinare (rete di sicurezza).",
+    )
+    parser.add_argument(
+        "--no-browser", action="store_true",
+        help="Non aprire mai il browser per l'auth (per esecuzioni programmate).",
+    )
+    parser.add_argument(
         "--lista-criteri", action="store_true",
         help="Mostra i criteri di ordinamento disponibili ed esce.",
     )
@@ -192,7 +200,7 @@ def _esegui(argv=None) -> None:
     print(dim("🌐 Se necessario, il browser si aprirà per autorizzare l'app.\n"))
 
     try:
-        sp = create_client()
+        sp = create_client(open_browser=not args.no_browser)
     except ValueError as e:
         print(giallo(f"❌ {e}"))
         raise SystemExit(1)
@@ -225,10 +233,14 @@ def _esegui(argv=None) -> None:
         criterio = scegli_criterio() if not args.playlist else CRITERI_ORDINAMENTO[0]
 
     chiedi_conferma = not args.yes
+    backup_dir = os.path.join(_get_app_dir(), "backups")
 
     for i, playlist_id in enumerate(playlist_ids, 1):
         if len(playlist_ids) > 1:
             print(bold(cyan(f"\n▶ Playlist {i}/{len(playlist_ids)}")))
+        if args.backup_before and not args.dry_run:
+            path = esporta_backup(sp, playlist_id, backup_dir)
+            print(verde("💾 Backup salvato: ") + dim(path))
         riordina_playlist(
             sp,
             "https://open.spotify.com/playlist/" + playlist_id,

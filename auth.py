@@ -59,5 +59,11 @@ def _build_oauth(open_browser: bool = False) -> SpotifyPKCE:
     )
 
 
-def create_client() -> Spotify:
-    return Spotify(auth_manager=_build_oauth(open_browser=True))
+def create_client(open_browser: bool = True) -> Spotify:
+    """Crea il client Spotify.
+
+    Con open_browser=False (es. esecuzioni programmate) l'app non apre mai il
+    browser: se il token in cache non è rinnovabile in silenzio, l'auth fallisce
+    invece di restare in attesa di un login manuale.
+    """
+    return Spotify(auth_manager=_build_oauth(open_browser=open_browser))

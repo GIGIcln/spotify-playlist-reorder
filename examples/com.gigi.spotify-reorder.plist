@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  LaunchAgent di esempio: riordina automaticamente una playlist il primo del mese.
+
+  Prima di usarlo:
+   1. Sostituisci __INCOLLA_QUI_URL_PLAYLIST__ con il link della playlist
+      (in Spotify: click destro sulla playlist -> Condividi -> Copia link).
+   2. Controlla i percorsi assoluti (utente/venv) se hai spostato il progetto.
+   3. Copialo in ~/Library/LaunchAgents/ e caricalo (vedi README, sezione
+      "Riordino automatico programmato").
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.gigi.spotify-reorder</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/gigi/GitHub/spotify-reorder/spotify-env/bin/spotify-reorder</string>
+        <string>-p</string>
+        <string>__INCOLLA_QUI_URL_PLAYLIST__</string>
+        <string>-c</string>
+        <string>default</string>
+        <string>--yes</string>
+        <string>--no-browser</string>
+        <string>--backup-before</string>
+    </array>
+
+    <!-- Il primo giorno di ogni mese, alle 09:00. Modifica Hour/Minute a piacere. -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Day</key>
+        <integer>1</integer>
+        <key>Hour</key>
+        <integer>9</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <!-- Log: output e errori finiscono qui, così puoi controllare com'è andata. -->
+    <key>StandardOutPath</key>
+    <string>/Users/gigi/Library/Logs/spotify-reorder.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/gigi/Library/Logs/spotify-reorder.log</string>
+</dict>
+</plist>
