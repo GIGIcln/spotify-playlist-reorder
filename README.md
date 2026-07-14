@@ -93,6 +93,9 @@ spotify-reorder -p <id1> -p <id2> -y
 # accetta anche URL completi
 spotify-reorder -p "https://open.spotify.com/playlist/37i9dQ...?si=abc" -y
 
+# anteprima del nuovo ordine, senza toccare la playlist
+spotify-reorder -p 37i9dQ... -c popolarita --dry-run
+
 # elenco dei criteri (numero + slug) senza autenticarsi
 spotify-reorder --lista-criteri
 ```
@@ -102,6 +105,7 @@ spotify-reorder --lista-criteri
 | `-p`, `--playlist` | ID o URL di una playlist. Ripetibile. Se omesso → menu interattivo. |
 | `-c`, `--criterio` | Numero (`1`–`5`) o slug del criterio. Default (con `-p`): il primo. |
 | `-y`, `--yes` | Applica senza chiedere conferma. |
+| `--dry-run` | Mostra l'anteprima del nuovo ordine senza applicare modifiche. |
 | `--lista-criteri` | Mostra i criteri disponibili ed esce. |
 
 ### Comando globale (senza attivare il venv)

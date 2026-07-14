@@ -10,6 +10,7 @@ from playlist import (
     calcola_ordine_target,
     applica_riordinamento,
     fetch_tracks,
+    riordina_playlist,
     _reorder_with_retry,
     verifica_proprietario,
     _mostra_anteprima,
@@ -201,6 +202,37 @@ class TestFetchTracks:
         ]
         tracks = fetch_tracks(self._sp(contents), "pid")
         assert [t["uri"] for t in tracks] == ["spotify:track:ok"]
+
+
+class TestRiordinaPlaylistDryRun:
+    def _sp_con_due_tracce(self):
+        # Due tracce in ordine artista "b","a": il criterio default le inverte,
+        # quindi target_order != identità e si arriva al ramo dry-run.
+        def _track(artista):
+            return {
+                "type": "track",
+                "uri": f"spotify:track:{artista}",
+                "name": artista.upper(),
+                "artists": [{"name": artista}],
+                "album": {"release_date": "2020-01-01"},
+            }
+        sp = MagicMock()
+        sp.playlist.return_value = {"name": "P", "owner": {"id": "me"}, "collaborative": False}
+        sp.playlist_items.return_value = {
+            "items": [{"track": _track("b")}, {"track": _track("a")}],
+            "next": None,
+        }
+        sp.next.return_value = None
+        return sp
+
+    def test_dry_run_non_scrive(self, capsys):
+        sp = self._sp_con_due_tracce()
+        riordina_playlist(sp, "https://open.spotify.com/playlist/pid",
+                          me_id="me", chiedi_conferma=True, dry_run=True)
+        sp.playlist_reorder_items.assert_not_called()
+        out = capsys.readouterr().out
+        assert "Dry-run" in out
+        assert "Anteprima" in out  # l'anteprima viene comunque mostrata
 
 
 class TestReorderWithRetry:

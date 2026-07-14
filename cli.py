@@ -141,6 +141,10 @@ def _parse_args(argv=None) -> argparse.Namespace:
         help="Applica senza chiedere conferma (utile per script e automazioni).",
     )
     parser.add_argument(
+        "--dry-run", action="store_true",
+        help="Mostra l'anteprima del nuovo ordine senza applicare modifiche.",
+    )
+    parser.add_argument(
         "--lista-criteri", action="store_true",
         help="Mostra i criteri di ordinamento disponibili ed esce.",
     )
@@ -197,6 +201,7 @@ def _esegui(argv=None) -> None:
             criterio,
             me_id=me_id,
             chiedi_conferma=chiedi_conferma,
+            dry_run=args.dry_run,
         )
 
 

@@ -211,6 +211,7 @@ def riordina_playlist(
     criterio: dict = None,
     me_id: str = None,
     chiedi_conferma: bool = False,
+    dry_run: bool = False,
 ) -> None:
     if criterio is None:
         criterio = DEFAULT_CRITERIO
@@ -237,6 +238,11 @@ def riordina_playlist(
     target_order = calcola_ordine_target(tracks, criterio)
     if target_order == list(range(len(tracks))):
         print("✅ La playlist è già nell'ordine corretto. Nessuna modifica necessaria.")
+        return
+
+    if dry_run:
+        _mostra_anteprima(tracks, target_order)
+        print(dim("\n🔍 Dry-run: nessuna modifica applicata alla playlist."))
         return
 
     if chiedi_conferma:

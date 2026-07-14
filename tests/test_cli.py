@@ -104,6 +104,10 @@ class TestParseArgs:
     def test_lista_criteri(self):
         assert _parse_args(["--lista-criteri"]).lista_criteri is True
 
+    def test_dry_run(self):
+        assert _parse_args([]).dry_run is False
+        assert _parse_args(["--dry-run"]).dry_run is True
+
 
 class TestMain:
     def _run_main(self, argv):
@@ -158,6 +162,16 @@ class TestMain:
     def test_piu_playlist(self):
         m = self._run_main(["-p", "A", "-p", "B", "-y"])
         assert m["rp"].call_count == 2
+
+    def test_dry_run_propagato(self):
+        m = self._run_main(["-p", "PL1", "--dry-run", "-y"])
+        _, kwargs = m["rp"].call_args
+        assert kwargs["dry_run"] is True
+
+    def test_dry_run_default_false(self):
+        m = self._run_main(["-p", "PL1", "-y"])
+        _, kwargs = m["rp"].call_args
+        assert kwargs["dry_run"] is False
 
     def test_keyboardinterrupt_uscita_pulita(self):
         with patch("cli._esegui", side_effect=KeyboardInterrupt), \
