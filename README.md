@@ -107,7 +107,25 @@ spotify-reorder --lista-criteri
 | `-c`, `--criterio` | Numero (`1`–`5`) o slug del criterio. Default (con `-p`): il primo. |
 | `-y`, `--yes` | Applica senza chiedere conferma. |
 | `--dry-run` | Mostra l'anteprima del nuovo ordine senza applicare modifiche. |
+| `--backup` | Salva l'ordine attuale della/e playlist in un file, senza riordinare. |
+| `--restore FILE` | Ripristina l'ordine di una playlist da un file di backup. |
 | `--lista-criteri` | Mostra i criteri disponibili ed esce. |
+
+### Backup e ripristino
+
+Prima di un riordino puoi salvare l'ordine corrente come rete di sicurezza, e
+ripristinarlo in seguito. I backup sono file JSON nella cartella `backups/`.
+
+```bash
+# salva l'ordine attuale (nessuna modifica alla playlist)
+spotify-reorder -p 37i9dQ... --backup
+
+# ...più tardi, ripristina quell'ordine
+spotify-reorder --restore backups/37i9dQ...-20260714-101500.json
+```
+
+Per prudenza il ripristino **si rifiuta se la playlist è cambiata** dal backup
+(brani aggiunti o rimossi): l'insieme dei brani deve combaciare esattamente.
 
 ### Comando globale (senza attivare il venv)
 

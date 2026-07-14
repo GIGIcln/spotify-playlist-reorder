@@ -1,5 +1,6 @@
 import sys
 import os
+import json
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import pytest
@@ -11,6 +12,8 @@ from playlist import (
     applica_riordinamento,
     fetch_tracks,
     riordina_playlist,
+    esporta_backup,
+    ripristina_backup,
     _reorder_with_retry,
     verifica_proprietario,
     _mostra_anteprima,
@@ -233,6 +236,79 @@ class TestRiordinaPlaylistDryRun:
         out = capsys.readouterr().out
         assert "Dry-run" in out
         assert "Anteprima" in out  # l'anteprima viene comunque mostrata
+
+
+def _sp_con_tracce(uris, owner="me"):
+    """Spotify finto: playlist di proprietà `owner` con i brani dati (per uri)."""
+    def _content(uri):
+        return {
+            "type": "track", "uri": uri, "name": uri.split(":")[-1],
+            "artists": [{"name": "A"}], "album": {"release_date": "2020-01-01"},
+        }
+    sp = MagicMock()
+    sp.playlist.return_value = {"name": "P", "owner": {"id": owner}, "collaborative": False}
+    sp.playlist_items.return_value = {"items": [{"track": _content(u)} for u in uris], "next": None}
+    sp.next.return_value = None
+    sp.playlist_reorder_items.return_value = {"snapshot_id": "s"}
+    return sp
+
+
+class TestEsportaBackup:
+    def test_scrive_file_con_ordine(self, tmp_path):
+        sp = _sp_con_tracce(["spotify:track:a", "spotify:track:b"])
+        path = esporta_backup(sp, "pid", str(tmp_path))
+        assert os.path.isfile(path)
+        data = json.load(open(path, encoding="utf-8"))
+        assert data["playlist_id"] == "pid"
+        assert [t["uri"] for t in data["tracks"]] == ["spotify:track:a", "spotify:track:b"]
+
+
+class TestRipristinaBackup:
+    def _scrivi_backup(self, tmp_path, uris, playlist_id="pid"):
+        path = tmp_path / "bk.json"
+        path.write_text(json.dumps({
+            "playlist_id": playlist_id,
+            "playlist_name": "P",
+            "created_at": "2026-07-14T10:00:00",
+            "tracks": [{"uri": u, "nome": u} for u in uris],
+        }), encoding="utf-8")
+        return str(path)
+
+    def test_ripristina_ordine_se_combacia(self, tmp_path):
+        # Backup [b, a]; attuale [a, b] -> riordina.
+        bk = self._scrivi_backup(tmp_path, ["spotify:track:b", "spotify:track:a"])
+        sp = _sp_con_tracce(["spotify:track:a", "spotify:track:b"])
+        ripristina_backup(sp, bk, me_id="me")
+        sp.playlist_reorder_items.assert_called()
+
+    def test_rifiuta_se_playlist_cambiata(self, tmp_path, capsys):
+        # Backup [a, b]; attuale [a, c] -> insiemi diversi -> annulla, nessuna scrittura.
+        bk = self._scrivi_backup(tmp_path, ["spotify:track:a", "spotify:track:b"])
+        sp = _sp_con_tracce(["spotify:track:a", "spotify:track:c"])
+        ripristina_backup(sp, bk, me_id="me")
+        sp.playlist_reorder_items.assert_not_called()
+        assert "annullato" in capsys.readouterr().out
+
+    def test_gia_nell_ordine_del_backup(self, tmp_path, capsys):
+        bk = self._scrivi_backup(tmp_path, ["spotify:track:a", "spotify:track:b"])
+        sp = _sp_con_tracce(["spotify:track:a", "spotify:track:b"])
+        ripristina_backup(sp, bk, me_id="me")
+        sp.playlist_reorder_items.assert_not_called()
+        assert "già nell'ordine" in capsys.readouterr().out
+
+    def test_dry_run_non_scrive(self, tmp_path, capsys):
+        bk = self._scrivi_backup(tmp_path, ["spotify:track:b", "spotify:track:a"])
+        sp = _sp_con_tracce(["spotify:track:a", "spotify:track:b"])
+        ripristina_backup(sp, bk, me_id="me", dry_run=True)
+        sp.playlist_reorder_items.assert_not_called()
+        assert "Dry-run" in capsys.readouterr().out
+
+    def test_salta_se_non_proprietario(self, tmp_path, capsys):
+        bk = self._scrivi_backup(tmp_path, ["spotify:track:b", "spotify:track:a"])
+        sp = _sp_con_tracce(["spotify:track:a", "spotify:track:b"], owner="altro")
+        ripristina_backup(sp, bk, me_id="me")
+        sp.playlist_reorder_items.assert_not_called()
+        assert "Salto" in capsys.readouterr().out
 
 
 class TestReorderWithRetry:

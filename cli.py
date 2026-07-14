@@ -1,7 +1,14 @@
 import argparse
+import os
 
-from auth import create_client
-from playlist import riordina_playlist, estrai_playlist_id, CRITERI_ORDINAMENTO
+from auth import create_client, _get_app_dir
+from playlist import (
+    riordina_playlist,
+    esporta_backup,
+    ripristina_backup,
+    estrai_playlist_id,
+    CRITERI_ORDINAMENTO,
+)
 from colori import bold, dim, cyan, blu, verde, giallo
 
 
@@ -148,6 +155,15 @@ def _parse_args(argv=None) -> argparse.Namespace:
         "--lista-criteri", action="store_true",
         help="Mostra i criteri di ordinamento disponibili ed esce.",
     )
+    gruppo = parser.add_mutually_exclusive_group()
+    gruppo.add_argument(
+        "--backup", action="store_true",
+        help="Salva l'ordine attuale della/e playlist in un file, senza riordinare.",
+    )
+    gruppo.add_argument(
+        "--restore", metavar="FILE",
+        help="Ripristina l'ordine di una playlist da un file di backup.",
+    )
     return parser.parse_args(argv)
 
 
@@ -167,6 +183,10 @@ def _esegui(argv=None) -> None:
             print(dim("   Usa --lista-criteri per vedere numeri e slug disponibili."))
             raise SystemExit(1)
 
+    if args.restore and not os.path.isfile(args.restore):
+        print(giallo(f"❌ File di backup non trovato: {args.restore}"))
+        raise SystemExit(1)
+
     print(bold(cyan("\n  🎧 Spotify Playlist Reorder\n")))
     print("⏳ Avvio autenticazione Spotify...")
     print(dim("🌐 Se necessario, il browser si aprirà per autorizzare l'app.\n"))
@@ -181,10 +201,24 @@ def _esegui(argv=None) -> None:
 
     me_id = sp.current_user()["id"]
 
+    if args.restore:
+        ripristina_backup(
+            sp, args.restore, me_id=me_id,
+            chiedi_conferma=not args.yes, dry_run=args.dry_run,
+        )
+        return
+
     if args.playlist:
         playlist_ids = [estrai_playlist_id(p) for p in args.playlist]
     else:
         playlist_ids = scegli_playlist(sp)
+
+    if args.backup:
+        dest = os.path.join(_get_app_dir(), "backups")
+        for playlist_id in playlist_ids:
+            path = esporta_backup(sp, playlist_id, dest)
+            print(verde("💾 Backup salvato: ") + dim(path))
+        return
 
     # Criterio: esplicito > (interattivo: menu) > (non-interattivo: default).
     if criterio is None:

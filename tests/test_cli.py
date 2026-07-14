@@ -108,6 +108,14 @@ class TestParseArgs:
         assert _parse_args([]).dry_run is False
         assert _parse_args(["--dry-run"]).dry_run is True
 
+    def test_backup_e_restore(self):
+        assert _parse_args(["--backup"]).backup is True
+        assert _parse_args(["--restore", "f.json"]).restore == "f.json"
+
+    def test_backup_e_restore_mutuamente_esclusivi(self):
+        with pytest.raises(SystemExit):
+            _parse_args(["--backup", "--restore", "f.json"])
+
 
 class TestMain:
     def _run_main(self, argv):
@@ -172,6 +180,35 @@ class TestMain:
         m = self._run_main(["-p", "PL1", "-y"])
         _, kwargs = m["rp"].call_args
         assert kwargs["dry_run"] is False
+
+    def test_restore_chiama_ripristina(self, tmp_path):
+        f = tmp_path / "bk.json"
+        f.write_text("{}")
+        sp = MagicMock()
+        sp.current_user.return_value = {"id": "me"}
+        with patch("cli.create_client", return_value=sp), \
+             patch("cli.ripristina_backup") as m_rb, \
+             patch("cli.riordina_playlist") as m_rp:
+            main(["--restore", str(f), "-y"])
+        m_rb.assert_called_once()
+        m_rp.assert_not_called()
+        _, kwargs = m_rb.call_args
+        assert kwargs["chiedi_conferma"] is False
+
+    def test_restore_file_mancante_esce_prima_di_auth(self):
+        with patch("cli.create_client") as m_client, pytest.raises(SystemExit):
+            main(["--restore", "/percorso/inesistente.json"])
+        m_client.assert_not_called()
+
+    def test_backup_chiama_esporta(self):
+        sp = MagicMock()
+        sp.current_user.return_value = {"id": "me"}
+        with patch("cli.create_client", return_value=sp), \
+             patch("cli.esporta_backup", return_value="/x/bk.json") as m_eb, \
+             patch("cli.riordina_playlist") as m_rp:
+            main(["-p", "PL1", "--backup"])
+        m_eb.assert_called_once()
+        m_rp.assert_not_called()
 
     def test_keyboardinterrupt_uscita_pulita(self):
         with patch("cli._esegui", side_effect=KeyboardInterrupt), \

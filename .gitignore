@@ -8,6 +8,9 @@ settings.json
 build/
 dist/
 
+# Backup dell'ordine delle playlist
+backups/
+
 # Log
 *.log
 

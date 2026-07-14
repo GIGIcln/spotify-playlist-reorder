@@ -1,4 +1,9 @@
+import json
+import os
 import time
+from collections import Counter, defaultdict, deque
+from datetime import datetime
+
 from spotipy import Spotify
 from tqdm import tqdm
 from colori import bold, dim, cyan, verde, giallo
@@ -257,3 +262,95 @@ def riordina_playlist(
         print(verde(f"✅ Playlist riordinata con successo!") + dim(f" ({moves} spostamenti effettuati)"))
     except Exception as e:
         print(giallo(f"❌ Errore durante il riordinamento: {e}"))
+
+
+def esporta_backup(sp: Spotify, playlist_id: str, dest_dir: str = ".") -> str:
+    """Salva l'ordine attuale della playlist in un file JSON. Ritorna il percorso.
+
+    Il backup contiene l'ordine dei brani (URI + etichetta leggibile) e serve
+    come rete di sicurezza: `ripristina_backup` riporta la playlist a questo ordine.
+    """
+    try:
+        info = sp.playlist(playlist_id, fields="name")
+    except Exception:
+        info = {}
+    nome = info.get("name", playlist_id)
+    tracks = fetch_tracks(sp, playlist_id)
+
+    data = {
+        "playlist_id": playlist_id,
+        "playlist_name": nome,
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+        "tracks": [{"uri": t["uri"], "nome": f"{t['artista']} — {t['nome']}"} for t in tracks],
+    }
+
+    os.makedirs(dest_dir, exist_ok=True)
+    path = os.path.join(dest_dir, f"{playlist_id}-{datetime.now():%Y%m%d-%H%M%S}.json")
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    return path
+
+
+def ripristina_backup(
+    sp: Spotify,
+    file_path: str,
+    me_id: str = None,
+    chiedi_conferma: bool = False,
+    dry_run: bool = False,
+) -> None:
+    """Ripristina l'ordine di una playlist da un file di backup.
+
+    Per prudenza il ripristino si rifiuta se la playlist è cambiata dal backup
+    (brani aggiunti o rimossi): l'insieme dei brani deve combaciare esattamente.
+    """
+    with open(file_path, encoding="utf-8") as f:
+        data = json.load(f)
+    playlist_id = data["playlist_id"]
+    saved_uris = [t["uri"] for t in data["tracks"]]
+
+    if me_id is not None:
+        modificabile, dettaglio = verifica_proprietario(sp, playlist_id, me_id)
+        if not modificabile:
+            print(giallo(f"⚠️  Salto: {dettaglio}."))
+            print(dim("   Non hai i permessi per modificarla."))
+            return
+
+    print("⏳ Confronto con lo stato attuale della playlist...")
+    current = fetch_tracks(sp, playlist_id)
+    current_uris = [t["uri"] for t in current]
+
+    if Counter(saved_uris) != Counter(current_uris):
+        aggiunti = sum((Counter(current_uris) - Counter(saved_uris)).values())
+        rimossi = sum((Counter(saved_uris) - Counter(current_uris)).values())
+        print(giallo("❌ La playlist è cambiata rispetto al backup: ripristino annullato."))
+        print(dim(f"   Backup: {len(saved_uris)} brani · Attuale: {len(current_uris)} brani "
+                  f"(+{aggiunti} aggiunti, −{rimossi} rimossi)."))
+        return
+
+    # I brani combaciano: costruisce l'ordine bersaglio che riproduce il backup.
+    buckets = defaultdict(deque)
+    for idx, t in enumerate(current):
+        buckets[t["uri"]].append(idx)
+    target_order = [buckets[uri].popleft() for uri in saved_uris]
+
+    if target_order == list(range(len(current))):
+        print("✅ La playlist è già nell'ordine del backup. Nessuna modifica necessaria.")
+        return
+
+    if dry_run:
+        _mostra_anteprima(current, target_order)
+        print(dim("\n🔍 Dry-run: nessuna modifica applicata alla playlist."))
+        return
+
+    if chiedi_conferma:
+        _mostra_anteprima(current, target_order)
+        if not _conferma_interattiva(f"\n{giallo('›')} Ripristinare questo ordine dal backup? {dim('(s/N)')}: "):
+            print(dim("↩️  Operazione annullata, la playlist non è stata modificata."))
+            return
+
+    print("💾 Ripristino su Spotify in corso " + dim("(date di aggiunta preservate)") + "...")
+    try:
+        moves = applica_riordinamento(sp, playlist_id, target_order)
+        print(verde("✅ Playlist ripristinata dal backup!") + dim(f" ({moves} spostamenti effettuati)"))
+    except Exception as e:
+        print(giallo(f"❌ Errore durante il ripristino: {e}"))
