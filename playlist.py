@@ -63,18 +63,18 @@ def fetch_tracks(sp: Spotify, playlist_id: str) -> list[dict]:
                 continue
             if content.get("is_local", False) or not content.get("uri"):
                 continue
+            album = content.get("album") or {}
             try:
                 tracks.append({
                     "uri": content["uri"],
                     "nome": content.get("name", "Sconosciuto"),
                     "artista": content["artists"][0]["name"].strip().lower()
                                if content.get("artists") else "zzz_unknown",
-                    "data_uscita": normalizza_data(content["album"]["release_date"])
-                                   if content.get("album") else "9999-99-99",
+                    "data_uscita": normalizza_data(album.get("release_date")),
                     "posizione_album": content.get("track_number", 0),
                     "popularity": content.get("popularity", 0),
                 })
-            except Exception as e:
+            except (KeyError, IndexError, TypeError, AttributeError) as e:
                 print(f"⚠️ Traccia ignorata: {e}")
         results = sp.next(results) if results.get("next") else None
     return tracks

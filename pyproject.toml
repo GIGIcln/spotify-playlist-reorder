@@ -14,8 +14,14 @@ dependencies = [
     "tqdm>=4.0.0",
 ]
 
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+
 [project.scripts]
 spotify-reorder = "cli:main"
 
 [tool.setuptools]
 py-modules = ["cli", "auth", "playlist", "colori", "reorder_playlist"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -161,8 +161,8 @@ spotify-playlist-reorder/
 ## Test
 
 ```bash
-pip install pytest
-pytest tests/
+pip install -e ".[dev]"   # installa anche pytest
+pytest
 ```
 
 ## Risoluzione problemi

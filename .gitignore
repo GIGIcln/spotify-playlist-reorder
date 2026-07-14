@@ -9,7 +9,7 @@ build/
 dist/
 
 # Log
-*.txt
+*.log
 
 # Ambiente virtuale
 spotify-env/

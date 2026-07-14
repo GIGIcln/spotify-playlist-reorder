@@ -158,3 +158,15 @@ class TestMain:
     def test_piu_playlist(self):
         m = self._run_main(["-p", "A", "-p", "B", "-y"])
         assert m["rp"].call_count == 2
+
+    def test_keyboardinterrupt_uscita_pulita(self):
+        with patch("cli._esegui", side_effect=KeyboardInterrupt), \
+             pytest.raises(SystemExit) as exc:
+            main([])
+        assert exc.value.code == 130
+
+    def test_eoferror_uscita_pulita(self):
+        with patch("cli._esegui", side_effect=EOFError), \
+             pytest.raises(SystemExit) as exc:
+            main([])
+        assert exc.value.code == 130

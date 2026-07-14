@@ -9,6 +9,7 @@ from playlist import (
     normalizza_data,
     calcola_ordine_target,
     applica_riordinamento,
+    fetch_tracks,
     _reorder_with_retry,
     verifica_proprietario,
     _mostra_anteprima,
@@ -147,6 +148,59 @@ class TestCalcolaOrdineTarget:
             self._make_track("c", "2020-01-01", 1, popularity=60),
         ]
         assert calcola_ordine_target(tracks, PER_POPOLARITA) == [1, 2, 0]
+
+
+class TestFetchTracks:
+    def _sp(self, contents):
+        sp = MagicMock()
+        sp.playlist_items.return_value = {
+            "items": [{"track": c} for c in contents],
+            "next": None,
+        }
+        sp.next.return_value = None
+        return sp
+
+    def _track(self, **overrides):
+        base = {
+            "type": "track",
+            "uri": "spotify:track:aaa",
+            "name": "X",
+            "artists": [{"name": "Artist"}],
+            "album": {"release_date": "2020-05-10"},
+        }
+        base.update(overrides)
+        return base
+
+    def test_traccia_normale(self):
+        tracks = fetch_tracks(self._sp([self._track()]), "pid")
+        assert len(tracks) == 1
+        assert tracks[0]["artista"] == "artist"
+        assert tracks[0]["data_uscita"] == "2020-05-10"
+
+    def test_album_senza_release_date_non_scartata(self):
+        # Prima causava KeyError -> traccia persa; ora viene tenuta con data ignota.
+        tracks = fetch_tracks(self._sp([self._track(album={})]), "pid")
+        assert len(tracks) == 1
+        assert tracks[0]["data_uscita"] == "9999-99-99"
+
+    def test_album_none_non_scartata(self):
+        tracks = fetch_tracks(self._sp([self._track(album=None)]), "pid")
+        assert len(tracks) == 1
+        assert tracks[0]["data_uscita"] == "9999-99-99"
+
+    def test_senza_artisti_usa_placeholder(self):
+        tracks = fetch_tracks(self._sp([self._track(artists=[])]), "pid")
+        assert tracks[0]["artista"] == "zzz_unknown"
+
+    def test_salta_locali_e_non_tracce(self):
+        contents = [
+            self._track(is_local=True),
+            self._track(type="episode"),
+            self._track(uri=""),
+            self._track(uri="spotify:track:ok"),
+        ]
+        tracks = fetch_tracks(self._sp(contents), "pid")
+        assert [t["uri"] for t in tracks] == ["spotify:track:ok"]
 
 
 class TestReorderWithRetry:

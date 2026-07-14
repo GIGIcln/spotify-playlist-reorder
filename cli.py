@@ -147,7 +147,7 @@ def _parse_args(argv=None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def main(argv=None) -> None:
+def _esegui(argv=None) -> None:
     args = _parse_args(argv)
 
     if args.lista_criteri:
@@ -198,6 +198,14 @@ def main(argv=None) -> None:
             me_id=me_id,
             chiedi_conferma=chiedi_conferma,
         )
+
+
+def main(argv=None) -> None:
+    try:
+        _esegui(argv)
+    except (KeyboardInterrupt, EOFError):
+        print(dim("\n↩️  Operazione annullata."))
+        raise SystemExit(130)
 
 
 if __name__ == "__main__":

@@ -36,7 +36,7 @@ def _get_app_dir() -> str:
 CACHE_PATH = os.path.join(_get_app_dir(), ".spotify_token_cache")
 
 
-def _build_oauth(open_browser: bool = False, show_dialog: bool = False) -> SpotifyOAuth:
+def _build_oauth(open_browser: bool = False) -> SpotifyOAuth:
     load_dotenv(dotenv_path=os.path.join(_get_app_dir(), ".env"), override=False)
     client_id = os.getenv("SPOTIPY_CLIENT_ID")
     client_secret = os.getenv("SPOTIPY_CLIENT_SECRET")
@@ -52,7 +52,6 @@ def _build_oauth(open_browser: bool = False, show_dialog: bool = False) -> Spoti
         scope=SCOPE,
         cache_path=CACHE_PATH,
         open_browser=open_browser,
-        show_dialog=show_dialog,
     )
 
 
