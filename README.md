@@ -50,11 +50,12 @@ Crea un file `.env` nella cartella del progetto (non va committato):
 
 ```dotenv
 SPOTIPY_CLIENT_ID=il_tuo_client_id
-SPOTIPY_CLIENT_SECRET=il_tuo_client_secret
 SPOTIPY_REDIRECT_URI=http://127.0.0.1:8888/callback
 ```
 
-Il Redirect URI deve corrispondere esattamente a quello impostato nella Dashboard Spotify.
+L'app usa il flusso **OAuth PKCE**, pensato per i client pubblici (CLI/desktop):
+serve **solo il `client_id`**, nessun `client_secret` da custodire. Il Redirect URI
+deve corrispondere esattamente a quello impostato nella Dashboard Spotify.
 
 ## Utilizzo
 
@@ -171,7 +172,7 @@ pytest
 
 ## Risoluzione problemi
 
-- **"Credenziali mancanti"** — controlla che `.env` esista e contenga `SPOTIPY_CLIENT_ID` / `SPOTIPY_CLIENT_SECRET`.
+- **"Credenziali mancanti"** — controlla che `.env` esista e contenga `SPOTIPY_CLIENT_ID`.
 - **Token non valido / errori di auth** — elimina `.spotify_token_cache` e riavvia.
 - **"comando non trovato: spotify-reorder"** — attiva l'ambiente virtuale (`source spotify-env/bin/activate`).
 - **Una playlist viene saltata (403)** — puoi riordinare solo playlist tue o collaborative; l'app te lo segnala prima di procedere.

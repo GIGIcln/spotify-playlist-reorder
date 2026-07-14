@@ -3,7 +3,8 @@ import sys
 from pathlib import Path
 
 from spotipy import Spotify
-from spotipy.oauth2 import SpotifyOAuth
+from spotipy.oauth2 import SpotifyPKCE
+from spotipy.cache_handler import CacheFileHandler
 from dotenv import load_dotenv
 
 SCOPE = (
@@ -36,21 +37,24 @@ def _get_app_dir() -> str:
 CACHE_PATH = os.path.join(_get_app_dir(), ".spotify_token_cache")
 
 
-def _build_oauth(open_browser: bool = False) -> SpotifyOAuth:
+def _build_oauth(open_browser: bool = False) -> SpotifyPKCE:
+    """Costruisce l'auth manager PKCE.
+
+    PKCE è pensato per i client pubblici (CLI, desktop) che non possono
+    custodire un secret: serve solo il client_id, nessun client_secret.
+    """
     load_dotenv(dotenv_path=os.path.join(_get_app_dir(), ".env"), override=False)
     client_id = os.getenv("SPOTIPY_CLIENT_ID")
-    client_secret = os.getenv("SPOTIPY_CLIENT_SECRET")
     redirect_uri = os.getenv("SPOTIPY_REDIRECT_URI", "http://127.0.0.1:8888/callback")
 
-    if not client_id or not client_secret:
-        raise ValueError("Credenziali mancanti. Verifica il file .env")
+    if not client_id:
+        raise ValueError("Credenziali mancanti. Verifica SPOTIPY_CLIENT_ID nel file .env")
 
-    return SpotifyOAuth(
+    return SpotifyPKCE(
         client_id=client_id,
-        client_secret=client_secret,
         redirect_uri=redirect_uri,
         scope=SCOPE,
-        cache_path=CACHE_PATH,
+        cache_handler=CacheFileHandler(cache_path=CACHE_PATH),
         open_browser=open_browser,
     )
 
