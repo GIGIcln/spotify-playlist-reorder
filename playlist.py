@@ -109,33 +109,60 @@ def applica_riordinamento(
     target_order: list[int],
     on_progress=None,
 ) -> int:
-    """Reorder playlist tracks. on_progress(done, total) is called after each step."""
+    """Reorder playlist tracks. on_progress(done, total) is called after each step.
+
+    Ritorna il numero di chiamate `playlist_reorder_items` effettuate.
+
+    L'algoritmo scorre le posizioni da sinistra a destra mantenendo l'invariante
+    che le prime `i` posizioni sono già corrette. Ad ogni passo cerca in O(1) dove
+    si trova il prossimo brano e, se combacia con un blocco già contiguo, lo sposta
+    con un'unica chiamata (`range_length > 1`) invece di una per brano.
+    """
     current_order = list(range(len(target_order)))
+    pos_of = {v: idx for idx, v in enumerate(current_order)}
     snapshot_id = None
     moves = 0
     total = len(target_order)
 
     with tqdm(total=total, desc="Riordinamento", unit="pos") as pbar:
-        for i, orig_idx in enumerate(target_order):
-            current_pos = current_order.index(orig_idx)
-            if current_pos != i:
-                insert_before = i if current_pos > i else i + 1
+        i = 0
+        while i < total:
+            p = pos_of[target_order[i]]  # posizione attuale del brano atteso in i (>= i)
+
+            # Estende il blocco finché i brani contigui a partire da p combaciano
+            # con la sequenza target: verranno spostati tutti in una sola chiamata.
+            k = 1
+            while (
+                i + k < total
+                and p + k < total
+                and current_order[p + k] == target_order[i + k]
+            ):
+                k += 1
+
+            if p != i:
                 result = _reorder_with_retry(
                     sp,
                     playlist_id,
-                    range_start=current_pos,
-                    insert_before=insert_before,
-                    range_length=1,
+                    range_start=p,
+                    insert_before=i,  # p >= i: il blocco va sempre inserito prima di i
+                    range_length=k,
                     snapshot_id=snapshot_id,
                 )
                 snapshot_id = result.get("snapshot_id")
                 moves += 1
-                item = current_order.pop(current_pos)
-                current_order.insert(i, item)
-            pbar.update(1)
+
+                block = current_order[p:p + k]
+                del current_order[p:p + k]
+                current_order[i:i] = block
+                # Riallinea le posizioni nella sola regione modificata [i, p+k).
+                for j in range(i, p + k):
+                    pos_of[current_order[j]] = j
+
+            i += k
+            pbar.update(k)
             pbar.set_postfix(spostamenti=moves)
             if on_progress:
-                on_progress(i + 1, total)
+                on_progress(i, total)
 
     return moves
 

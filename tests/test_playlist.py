@@ -8,6 +8,7 @@ from playlist import (
     estrai_playlist_id,
     normalizza_data,
     calcola_ordine_target,
+    applica_riordinamento,
     _reorder_with_retry,
     verifica_proprietario,
     _mostra_anteprima,
@@ -209,6 +210,82 @@ class TestReorderWithRetry:
         with patch("playlist.time.sleep") as mock_sleep:
             _reorder_with_retry(sp, "pid", range_start=0, insert_before=1, range_length=1)
         mock_sleep.assert_called_once_with(5)
+
+
+class _FakeSpotify:
+    """Spotify finto che applica la vera semantica di playlist_reorder_items.
+
+    Parte con la playlist in ordine originale [0, 1, ..., n-1]; dopo le chiamate
+    emesse da applica_riordinamento, `order` deve combaciare con target_order.
+    """
+
+    def __init__(self, n: int):
+        self.order = list(range(n))
+        self.calls = []
+        self.received_snapshots = []
+
+    def playlist_reorder_items(self, playlist_id, range_start, insert_before,
+                               range_length, snapshot_id=None):
+        self.calls.append((range_start, insert_before, range_length))
+        self.received_snapshots.append(snapshot_id)
+        block = self.order[range_start:range_start + range_length]
+        rest = self.order[:range_start] + self.order[range_start + range_length:]
+        ib = insert_before - range_length if insert_before > range_start else insert_before
+        self.order = rest[:ib] + block + rest[ib:]
+        return {"snapshot_id": f"s{len(self.calls)}"}
+
+
+class TestApplicaRiordinamento:
+    def _run(self, target_order):
+        sp = _FakeSpotify(len(target_order))
+        moves = applica_riordinamento(sp, "pid", target_order)
+        return sp, moves
+
+    def test_realizza_ordine_target(self):
+        sp, _ = self._run([2, 0, 1, 3])
+        assert sp.order == [2, 0, 1, 3]
+
+    def test_gia_ordinata_nessuna_chiamata(self):
+        sp, moves = self._run([0, 1, 2, 3])
+        assert sp.order == [0, 1, 2, 3]
+        assert moves == 0
+        assert sp.calls == []
+
+    def test_blocco_contiguo_una_sola_chiamata(self):
+        sp, moves = self._run([1, 2, 3, 0])
+        assert sp.order == [1, 2, 3, 0]
+        assert moves == 1
+        assert sp.calls == [(1, 0, 3)]  # sposta il blocco [1,2,3] in testa
+
+    def test_batching_riduce_le_chiamate(self):
+        # Due metà scambiate: un solo spostamento a blocco invece di ~5.
+        target = [5, 6, 7, 8, 9, 0, 1, 2, 3, 4]
+        sp, moves = self._run(target)
+        assert sp.order == target
+        assert moves == 1
+
+    def test_snapshot_id_concatenato(self):
+        sp, _ = self._run([3, 0, 1, 2, 5, 4])
+        # La prima chiamata parte senza snapshot, le successive usano quello precedente.
+        assert sp.received_snapshots[0] is None
+        assert sp.received_snapshots[1:] == [f"s{i}" for i in range(1, len(sp.calls))]
+
+    def test_progress_callback(self):
+        progress = []
+        sp = _FakeSpotify(4)
+        applica_riordinamento(sp, "pid", [3, 0, 1, 2], on_progress=lambda d, t: progress.append((d, t)))
+        assert progress[-1] == (4, 4)  # arriva sempre al totale
+
+    def test_correttezza_su_molte_permutazioni(self):
+        import random
+        rng = random.Random(1234)
+        for _ in range(300):
+            n = rng.randint(1, 15)
+            target = list(range(n))
+            rng.shuffle(target)
+            sp, moves = self._run(target)
+            assert sp.order == target
+            assert moves <= n  # mai peggio di uno spostamento per brano
 
 
 class TestVerificaProprietario:
