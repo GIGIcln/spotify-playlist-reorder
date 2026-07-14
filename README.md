@@ -34,6 +34,16 @@ pip install -e .
 
 `pip install -e .` installa le dipendenze **e** registra il comando `spotify-reorder`.
 
+> **Suggerimento (modalità compat).** Con l'install editable "classico", se
+> in futuro aggiungi un nuovo modulo `.py` al progetto potresti ottenere un
+> `ModuleNotFoundError` finché non reinstalli. Per evitarlo, installa una volta
+> in modalità compat — mette l'intera cartella del progetto sul path, così i
+> nuovi moduli funzionano senza reinstallare:
+>
+> ```bash
+> pip install -e . --config-settings editable_mode=compat
+> ```
+
 ## Configurazione
 
 Crea un file `.env` nella cartella del progetto (non va committato):
