@@ -1,12 +1,11 @@
 # Spotify Playlist Reorder
 
 App da **terminale** per riordinare le tue playlist Spotify secondo vari criteri
-(artista, data di uscita, popolarità, BPM, energia, danceability, valence) **senza
-alterare la data di aggiunta** dei brani.
+(artista, data di uscita, popolarità) **senza alterare la data di aggiunta** dei brani.
 
 ## Caratteristiche
 
-- **10 criteri di ordinamento**, da classici (artista → album → traccia) a basati sulle audio-feature (BPM, energia, ecc.)
+- **5 criteri di ordinamento** (artista → album → traccia, data di uscita, popolarità)
 - **Batch**: seleziona e riordina più playlist in una volta
 - **Anteprima + conferma** prima di applicare le modifiche
 - **Controllo proprietario**: salta con un messaggio chiaro le playlist che non puoi modificare (niente errore 403 grezzo)
@@ -99,18 +98,13 @@ la cartella, rifai il symlink/alias.
 
 ## Criteri di ordinamento
 
-| # | Criterio | Audio-feature |
-|---|----------|:---:|
-| 1 | Artista → Data → Posizione *(default)* | No |
-| 2 | Data di uscita — dal più vecchio | No |
-| 3 | Data di uscita — dal più recente | No |
-| 4 | Artista (A→Z) | No |
-| 5 | Popolarità — dal più popolare | No |
-| 6 | BPM — dal più lento | Sì |
-| 7 | BPM — dal più veloce | Sì |
-| 8 | Energia — dalla più alta | Sì |
-| 9 | Danceability — dalla più alta | Sì |
-| 10 | Valence / positività — dalla più alta | Sì |
+| # | Criterio |
+|---|----------|
+| 1 | Artista → Data → Posizione *(default)* |
+| 2 | Data di uscita — dal più vecchio |
+| 3 | Data di uscita — dal più recente |
+| 4 | Artista (A→Z) |
+| 5 | Popolarità — dal più popolare |
 
 ## Come funziona il riordino
 
@@ -125,7 +119,7 @@ chiamata.
 spotify-playlist-reorder/
 ├── reorder_playlist.py   # Entry point (python reorder_playlist.py)
 ├── cli.py                # Interfaccia da terminale
-├── playlist.py           # Logica: fetch, sort, riordino, audio-feature
+├── playlist.py           # Logica: fetch, sort, riordino
 ├── auth.py               # OAuth Spotify (legge le credenziali da .env)
 ├── pyproject.toml        # Metadati + comando `spotify-reorder`
 ├── requirements.txt

@@ -29,36 +29,6 @@ CRITERI_ORDINAMENTO = [
         "key": lambda t: t.get("popularity", 0),
         "reverse": True,
     },
-    {
-        "label": "BPM (dal più lento)",
-        "key": lambda t: t.get("bpm", 0.0),
-        "reverse": False,
-        "needs_audio": True,
-    },
-    {
-        "label": "BPM (dal più veloce)",
-        "key": lambda t: t.get("bpm", 0.0),
-        "reverse": True,
-        "needs_audio": True,
-    },
-    {
-        "label": "Energia (dalla più alta)",
-        "key": lambda t: t.get("energy", 0.0),
-        "reverse": True,
-        "needs_audio": True,
-    },
-    {
-        "label": "Danceability (dalla più alta)",
-        "key": lambda t: t.get("danceability", 0.0),
-        "reverse": True,
-        "needs_audio": True,
-    },
-    {
-        "label": "Valence / positività (dalla più alta)",
-        "key": lambda t: t.get("valence", 0.0),
-        "reverse": True,
-        "needs_audio": True,
-    },
 ]
 
 DEFAULT_CRITERIO = CRITERI_ORDINAMENTO[0]
@@ -102,32 +72,6 @@ def fetch_tracks(sp: Spotify, playlist_id: str) -> list[dict]:
             except Exception as e:
                 print(f"⚠️ Traccia ignorata: {e}")
         results = sp.next(results) if results.get("next") else None
-    return tracks
-
-
-def enrich_with_audio_features(sp: Spotify, tracks: list[dict]) -> list[dict]:
-    """Fetch BPM/energy/danceability/valence from Spotify and add them to each track dict."""
-    uris = [t["uri"] for t in tracks]
-    uri_to_idx = {uri: i for i, uri in enumerate(uris)}
-
-    for batch_start in range(0, len(uris), 100):
-        batch_uris = uris[batch_start:batch_start + 100]
-        batch_ids = [u.split(":")[-1] for u in batch_uris]
-        try:
-            features_batch = sp.audio_features(batch_ids)
-        except Exception as e:
-            print(f"⚠️ Audio features non disponibili (batch {batch_start // 100 + 1}): {e}")
-            continue
-
-        for uri, feat in zip(batch_uris, features_batch or []):
-            if not feat:
-                continue
-            idx = uri_to_idx[uri]
-            tracks[idx]["bpm"] = feat.get("tempo", 0.0)
-            tracks[idx]["energy"] = feat.get("energy", 0.0)
-            tracks[idx]["danceability"] = feat.get("danceability", 0.0)
-            tracks[idx]["valence"] = feat.get("valence", 0.0)
-
     return tracks
 
 
@@ -255,10 +199,6 @@ def riordina_playlist(
         print("❌ Nessun brano valido trovato.")
         print("💡 Controlla che la playlist contenga canzoni (non podcast) e che non siano file locali.")
         return
-
-    if criterio.get("needs_audio"):
-        print("⏳ Download audio features in corso...")
-        tracks = enrich_with_audio_features(sp, tracks)
 
     print(f"🎵 Trovati {len(tracks)} brani. Calcolo dell'ordine in corso...")
 

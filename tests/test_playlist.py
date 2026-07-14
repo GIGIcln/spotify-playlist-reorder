@@ -8,7 +8,6 @@ from playlist import (
     estrai_playlist_id,
     normalizza_data,
     calcola_ordine_target,
-    enrich_with_audio_features,
     _reorder_with_retry,
     verifica_proprietario,
     _mostra_anteprima,
@@ -20,11 +19,6 @@ PER_DATA_ASC = CRITERI_ORDINAMENTO[1]
 PER_DATA_DESC = CRITERI_ORDINAMENTO[2]
 PER_ARTISTA = CRITERI_ORDINAMENTO[3]
 PER_POPOLARITA = CRITERI_ORDINAMENTO[4]
-BPM_SLOW = CRITERI_ORDINAMENTO[5]
-BPM_FAST = CRITERI_ORDINAMENTO[6]
-ENERGIA = CRITERI_ORDINAMENTO[7]
-DANCE = CRITERI_ORDINAMENTO[8]
-VALENCE = CRITERI_ORDINAMENTO[9]
 
 
 class TestEstraiPlaylistId:
@@ -152,126 +146,6 @@ class TestCalcolaOrdineTarget:
             self._make_track("c", "2020-01-01", 1, popularity=60),
         ]
         assert calcola_ordine_target(tracks, PER_POPOLARITA) == [1, 2, 0]
-
-
-class TestEnrichWithAudioFeatures:
-    def _make_track(self, uri):
-        return {
-            "uri": uri,
-            "artista": "x",
-            "data_uscita": "2020-01-01",
-            "posizione_album": 1,
-            "popularity": 50,
-        }
-
-    def test_enrich_adds_all_fields(self):
-        sp = MagicMock()
-        sp.audio_features.return_value = [
-            {"tempo": 120.0, "energy": 0.8, "danceability": 0.7, "valence": 0.6},
-            {"tempo": 90.0, "energy": 0.4, "danceability": 0.5, "valence": 0.3},
-        ]
-        tracks = [
-            self._make_track("spotify:track:aaa"),
-            self._make_track("spotify:track:bbb"),
-        ]
-        result = enrich_with_audio_features(sp, tracks)
-        assert result[0]["bpm"] == 120.0
-        assert result[0]["energy"] == 0.8
-        assert result[0]["danceability"] == 0.7
-        assert result[0]["valence"] == 0.6
-        assert result[1]["bpm"] == 90.0
-
-    def test_enrich_skips_none_features(self):
-        sp = MagicMock()
-        sp.audio_features.return_value = [
-            None,
-            {"tempo": 100.0, "energy": 0.5, "danceability": 0.5, "valence": 0.5},
-        ]
-        tracks = [
-            self._make_track("spotify:track:aaa"),
-            self._make_track("spotify:track:bbb"),
-        ]
-        result = enrich_with_audio_features(sp, tracks)
-        assert "bpm" not in result[0]
-        assert result[1]["bpm"] == 100.0
-
-    def test_enrich_handles_api_error_gracefully(self):
-        sp = MagicMock()
-        sp.audio_features.side_effect = Exception("rate limited")
-        tracks = [self._make_track("spotify:track:aaa")]
-        result = enrich_with_audio_features(sp, tracks)
-        assert "bpm" not in result[0]
-
-    def test_enrich_batches_over_100(self):
-        feat = {"tempo": 100.0, "energy": 0.5, "danceability": 0.5, "valence": 0.5}
-        sp = MagicMock()
-        sp.audio_features.side_effect = [[feat] * 100, [feat] * 1]
-        tracks = [self._make_track(f"spotify:track:t{i}") for i in range(101)]
-        enrich_with_audio_features(sp, tracks)
-        assert sp.audio_features.call_count == 2
-
-
-class TestAudioCriteria:
-    def _make_audio_track(self, bpm, energy, danceability, valence):
-        return {
-            "uri": f"spotify:track:{bpm}-{energy}",
-            "artista": "x",
-            "data_uscita": "2020-01-01",
-            "posizione_album": 1,
-            "popularity": 50,
-            "bpm": float(bpm),
-            "energy": float(energy),
-            "danceability": float(danceability),
-            "valence": float(valence),
-        }
-
-    def test_bpm_slow_to_fast(self):
-        tracks = [
-            self._make_audio_track(140, 0.8, 0.7, 0.6),
-            self._make_audio_track(80, 0.4, 0.5, 0.3),
-            self._make_audio_track(110, 0.6, 0.6, 0.5),
-        ]
-        assert calcola_ordine_target(tracks, BPM_SLOW) == [1, 2, 0]
-
-    def test_bpm_fast_to_slow(self):
-        tracks = [
-            self._make_audio_track(140, 0.8, 0.7, 0.6),
-            self._make_audio_track(80, 0.4, 0.5, 0.3),
-            self._make_audio_track(110, 0.6, 0.6, 0.5),
-        ]
-        assert calcola_ordine_target(tracks, BPM_FAST) == [0, 2, 1]
-
-    def test_energia(self):
-        tracks = [
-            self._make_audio_track(100, 0.3, 0.5, 0.5),
-            self._make_audio_track(100, 0.9, 0.5, 0.5),
-            self._make_audio_track(100, 0.6, 0.5, 0.5),
-        ]
-        assert calcola_ordine_target(tracks, ENERGIA) == [1, 2, 0]
-
-    def test_danceability(self):
-        tracks = [
-            self._make_audio_track(100, 0.5, 0.2, 0.5),
-            self._make_audio_track(100, 0.5, 0.9, 0.5),
-            self._make_audio_track(100, 0.5, 0.6, 0.5),
-        ]
-        assert calcola_ordine_target(tracks, DANCE) == [1, 2, 0]
-
-    def test_valence(self):
-        tracks = [
-            self._make_audio_track(100, 0.5, 0.5, 0.1),
-            self._make_audio_track(100, 0.5, 0.5, 0.8),
-            self._make_audio_track(100, 0.5, 0.5, 0.5),
-        ]
-        assert calcola_ordine_target(tracks, VALENCE) == [1, 2, 0]
-
-    def test_missing_audio_field_defaults_to_zero(self):
-        tracks = [
-            {"uri": "a", "artista": "x", "data_uscita": "2020", "posizione_album": 1, "popularity": 50},
-            {"uri": "b", "artista": "x", "data_uscita": "2020", "posizione_album": 1, "popularity": 50, "bpm": 120.0},
-        ]
-        result = calcola_ordine_target(tracks, BPM_SLOW)
-        assert result == [0, 1]
 
 
 class TestReorderWithRetry:
