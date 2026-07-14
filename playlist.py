@@ -33,12 +33,6 @@ CRITERI_ORDINAMENTO = [
         "key": lambda t: t["artista"],
         "reverse": False,
     },
-    {
-        "slug": "popolarita",
-        "label": "Popolarità (dal più popolare)",
-        "key": lambda t: t.get("popularity", 0),
-        "reverse": True,
-    },
 ]
 
 DEFAULT_CRITERIO = CRITERI_ORDINAMENTO[0]
@@ -78,7 +72,6 @@ def fetch_tracks(sp: Spotify, playlist_id: str) -> list[dict]:
                     "artista_nome": artisti[0]["name"].strip() if artisti else "Sconosciuto",
                     "data_uscita": normalizza_data(album.get("release_date")),
                     "posizione_album": content.get("track_number", 0),
-                    "popularity": content.get("popularity", 0),
                 })
             except (KeyError, IndexError, TypeError, AttributeError) as e:
                 print(f"⚠️ Traccia ignorata: {e}")

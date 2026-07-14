@@ -25,7 +25,6 @@ DEFAULT = CRITERI_ORDINAMENTO[0]
 PER_DATA_ASC = CRITERI_ORDINAMENTO[1]
 PER_DATA_DESC = CRITERI_ORDINAMENTO[2]
 PER_ARTISTA = CRITERI_ORDINAMENTO[3]
-PER_POPOLARITA = CRITERI_ORDINAMENTO[4]
 
 
 class TestEstraiPlaylistId:
@@ -60,13 +59,12 @@ class TestNormalizzaData:
 
 
 class TestCalcolaOrdineTarget:
-    def _make_track(self, artista, data, posizione, popularity=50):
+    def _make_track(self, artista, data, posizione):
         return {
             "uri": f"spotify:track:{artista}",
             "artista": artista,
             "data_uscita": data,
             "posizione_album": posizione,
-            "popularity": popularity,
         }
 
     # --- criterio default (artista → data → posizione) ---
@@ -143,16 +141,6 @@ class TestCalcolaOrdineTarget:
             self._make_track("miro", "2020-01-01", 1),
         ]
         assert calcola_ordine_target(tracks, PER_ARTISTA) == [1, 2, 0]
-
-    # --- per popolarità ---
-
-    def test_per_popolarita(self):
-        tracks = [
-            self._make_track("a", "2020-01-01", 1, popularity=30),
-            self._make_track("b", "2020-01-01", 1, popularity=90),
-            self._make_track("c", "2020-01-01", 1, popularity=60),
-        ]
-        assert calcola_ordine_target(tracks, PER_POPOLARITA) == [1, 2, 0]
 
 
 class TestFetchTracks:
@@ -314,10 +302,10 @@ class TestRipristinaBackup:
 
 class TestAnalizzaPlaylist:
     def _sp(self, tracce):
-        # tracce: lista di (uri, artista, popularity)
-        def _c(uri, art, pop):
+        # tracce: lista di (uri, artista)
+        def _c(uri, art):
             return {"type": "track", "uri": uri, "name": uri, "artists": [{"name": art}],
-                    "album": {"release_date": "2020-01-01"}, "popularity": pop}
+                    "album": {"release_date": "2020-01-01"}}
         sp = MagicMock()
         sp.playlist.return_value = {"name": "P"}
         sp.playlist_items.return_value = {"items": [{"track": _c(*t)} for t in tracce], "next": None}
@@ -326,9 +314,9 @@ class TestAnalizzaPlaylist:
 
     def test_top_artisti(self, capsys):
         sp = self._sp([
-            ("spotify:track:1", "Rossi", 50),
-            ("spotify:track:2", "Rossi", 95),
-            ("spotify:track:3", "Bianchi", 70),
+            ("spotify:track:1", "Rossi"),
+            ("spotify:track:2", "Rossi"),
+            ("spotify:track:3", "Bianchi"),
         ])
         analizza_playlist(sp, "pid")
         out = capsys.readouterr().out
@@ -346,7 +334,7 @@ class TestAnalizzaPlaylist:
         assert "Nessun brano" in capsys.readouterr().out
 
     def test_non_scrive_mai(self, capsys):
-        sp = self._sp([("spotify:track:1", "Rossi", 50)])
+        sp = self._sp([("spotify:track:1", "Rossi")])
         analizza_playlist(sp, "pid")
         sp.playlist_reorder_items.assert_not_called()
 

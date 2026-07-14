@@ -1,11 +1,11 @@
 # Spotify Playlist Reorder
 
 App da **terminale** per riordinare le tue playlist Spotify secondo vari criteri
-(artista, data di uscita, popolarità) **senza alterare la data di aggiunta** dei brani.
+(artista, data di uscita) **senza alterare la data di aggiunta** dei brani.
 
 ## Caratteristiche
 
-- **5 criteri di ordinamento** (artista → album → traccia, data di uscita, popolarità)
+- **4 criteri di ordinamento** (artista → album → traccia, data di uscita)
 - **Batch**: seleziona e riordina più playlist in una volta
 - **Interattivo o da script**: menu guidato, oppure argomenti da riga di comando (`--playlist`, `--criterio`, `--yes`) per automazioni
 - **Anteprima + conferma** prima di applicare le modifiche
@@ -95,7 +95,7 @@ spotify-reorder -p <id1> -p <id2> -y
 spotify-reorder -p "https://open.spotify.com/playlist/37i9dQ...?si=abc" -y
 
 # anteprima del nuovo ordine, senza toccare la playlist
-spotify-reorder -p 37i9dQ... -c popolarita --dry-run
+spotify-reorder -p 37i9dQ... -c data-asc --dry-run
 
 # elenco dei criteri (numero + slug) senza autenticarsi
 spotify-reorder --lista-criteri
@@ -208,7 +208,6 @@ la cartella, rifai il symlink/alias.
 | 2 | `data-asc` | Data di uscita — dal più vecchio |
 | 3 | `data-desc` | Data di uscita — dal più recente |
 | 4 | `artista` | Artista (A→Z) |
-| 5 | `popolarita` | Popolarità — dal più popolare |
 
 ## Come funziona il riordino
 
