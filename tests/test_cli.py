@@ -118,6 +118,10 @@ class TestParseArgs:
         a2 = _parse_args(["--no-browser", "--backup-before"])
         assert a2.no_browser is True and a2.backup_before is True
 
+    def test_analizza(self):
+        assert _parse_args([]).analizza is False
+        assert _parse_args(["--analizza"]).analizza is True
+
     def test_backup_e_restore_mutuamente_esclusivi(self):
         with pytest.raises(SystemExit):
             _parse_args(["--backup", "--restore", "f.json"])
@@ -214,6 +218,16 @@ class TestMain:
              patch("cli.riordina_playlist") as m_rp:
             main(["-p", "PL1", "--backup"])
         m_eb.assert_called_once()
+        m_rp.assert_not_called()
+
+    def test_analizza_chiama_analisi(self):
+        sp = MagicMock()
+        sp.current_user.return_value = {"id": "me"}
+        with patch("cli.create_client", return_value=sp), \
+             patch("cli.analizza_playlist") as m_an, \
+             patch("cli.riordina_playlist") as m_rp:
+            main(["-p", "PL1", "--analizza"])
+        m_an.assert_called_once()
         m_rp.assert_not_called()
 
     def test_no_browser_passato_ad_auth(self):

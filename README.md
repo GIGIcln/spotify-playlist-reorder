@@ -111,7 +111,16 @@ spotify-reorder --lista-criteri
 | `--restore FILE` | Ripristina l'ordine di una playlist da un file di backup. |
 | `--backup-before` | Salva un backup prima di riordinare (rete di sicurezza). |
 | `--no-browser` | Non aprire mai il browser per l'auth (per esecuzioni programmate). |
+| `--analizza` | Mostra statistiche della/e playlist (sola lettura), senza riordinare. |
 | `--lista-criteri` | Mostra i criteri disponibili ed esce. |
+
+### Analisi (sola lettura)
+
+Mostra gli **artisti più presenti** nella playlist, senza modificarla.
+
+```bash
+spotify-reorder -p 37i9dQ... --analizza
+```
 
 ### Backup e ripristino
 

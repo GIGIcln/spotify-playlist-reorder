@@ -69,12 +69,13 @@ def fetch_tracks(sp: Spotify, playlist_id: str) -> list[dict]:
             if content.get("is_local", False) or not content.get("uri"):
                 continue
             album = content.get("album") or {}
+            artisti = content.get("artists") or []
             try:
                 tracks.append({
                     "uri": content["uri"],
                     "nome": content.get("name", "Sconosciuto"),
-                    "artista": content["artists"][0]["name"].strip().lower()
-                               if content.get("artists") else "zzz_unknown",
+                    "artista": artisti[0]["name"].strip().lower() if artisti else "zzz_unknown",
+                    "artista_nome": artisti[0]["name"].strip() if artisti else "Sconosciuto",
                     "data_uscita": normalizza_data(album.get("release_date")),
                     "posizione_album": content.get("track_number", 0),
                     "popularity": content.get("popularity", 0),
@@ -354,3 +355,36 @@ def ripristina_backup(
         print(verde("✅ Playlist ripristinata dal backup!") + dim(f" ({moves} spostamenti effettuati)"))
     except Exception as e:
         print(giallo(f"❌ Errore durante il ripristino: {e}"))
+
+
+def _stampa_analisi(nome: str, tracks: list[dict], quanti: int = 10) -> None:
+    n = len(tracks)
+    print("\n" + bold(cyan(f"  📊 Analisi: {nome}")) + dim(f"  ({n} brani)") + "\n")
+
+    # Artisti più presenti (raggruppa per nome normalizzato, mostra l'originale).
+    conteggio = Counter()
+    display = {}
+    for t in tracks:
+        chiave = t["artista"]
+        conteggio[chiave] += 1
+        display.setdefault(chiave, t.get("artista_nome", chiave))
+    print(bold("  Artisti più presenti"))
+    for i, (chiave, c) in enumerate(conteggio.most_common(quanti), 1):
+        brani = "brano" if c == 1 else "brani"
+        print(f"  {dim(f'{i:>2}.')} {display[chiave]} {dim(f'· {c} {brani}')}")
+
+
+def analizza_playlist(sp: Spotify, playlist_id: str) -> None:
+    """Stampa statistiche di una playlist senza modificarla (sola lettura)."""
+    try:
+        info = sp.playlist(playlist_id, fields="name")
+    except Exception:
+        info = {}
+    nome = info.get("name", playlist_id)
+
+    print("⏳ Download dei brani e metadati in corso...")
+    tracks = fetch_tracks(sp, playlist_id)
+    if not tracks:
+        print("❌ Nessun brano da analizzare.")
+        return
+    _stampa_analisi(nome, tracks)

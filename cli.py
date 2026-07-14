@@ -6,6 +6,7 @@ from playlist import (
     riordina_playlist,
     esporta_backup,
     ripristina_backup,
+    analizza_playlist,
     estrai_playlist_id,
     CRITERI_ORDINAMENTO,
 )
@@ -160,6 +161,10 @@ def _parse_args(argv=None) -> argparse.Namespace:
         help="Non aprire mai il browser per l'auth (per esecuzioni programmate).",
     )
     parser.add_argument(
+        "--analizza", action="store_true",
+        help="Mostra statistiche della/e playlist (sola lettura), senza riordinare.",
+    )
+    parser.add_argument(
         "--lista-criteri", action="store_true",
         help="Mostra i criteri di ordinamento disponibili ed esce.",
     )
@@ -220,6 +225,11 @@ def _esegui(argv=None) -> None:
         playlist_ids = [estrai_playlist_id(p) for p in args.playlist]
     else:
         playlist_ids = scegli_playlist(sp)
+
+    if args.analizza:
+        for playlist_id in playlist_ids:
+            analizza_playlist(sp, playlist_id)
+        return
 
     if args.backup:
         dest = os.path.join(_get_app_dir(), "backups")

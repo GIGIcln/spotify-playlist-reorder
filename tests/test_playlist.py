@@ -14,6 +14,7 @@ from playlist import (
     riordina_playlist,
     esporta_backup,
     ripristina_backup,
+    analizza_playlist,
     _reorder_with_retry,
     verifica_proprietario,
     _mostra_anteprima,
@@ -309,6 +310,45 @@ class TestRipristinaBackup:
         ripristina_backup(sp, bk, me_id="me")
         sp.playlist_reorder_items.assert_not_called()
         assert "Salto" in capsys.readouterr().out
+
+
+class TestAnalizzaPlaylist:
+    def _sp(self, tracce):
+        # tracce: lista di (uri, artista, popularity)
+        def _c(uri, art, pop):
+            return {"type": "track", "uri": uri, "name": uri, "artists": [{"name": art}],
+                    "album": {"release_date": "2020-01-01"}, "popularity": pop}
+        sp = MagicMock()
+        sp.playlist.return_value = {"name": "P"}
+        sp.playlist_items.return_value = {"items": [{"track": _c(*t)} for t in tracce], "next": None}
+        sp.next.return_value = None
+        return sp
+
+    def test_top_artisti(self, capsys):
+        sp = self._sp([
+            ("spotify:track:1", "Rossi", 50),
+            ("spotify:track:2", "Rossi", 95),
+            ("spotify:track:3", "Bianchi", 70),
+        ])
+        analizza_playlist(sp, "pid")
+        out = capsys.readouterr().out
+        assert "Artisti più presenti" in out
+        # Rossi (2 brani) prima di Bianchi (1) nella classifica artisti
+        assert out.index("Rossi") < out.index("Bianchi")
+        assert "2 brani" in out and "1 brano" in out
+
+    def test_playlist_vuota(self, capsys):
+        sp = MagicMock()
+        sp.playlist.return_value = {"name": "P"}
+        sp.playlist_items.return_value = {"items": [], "next": None}
+        sp.next.return_value = None
+        analizza_playlist(sp, "pid")
+        assert "Nessun brano" in capsys.readouterr().out
+
+    def test_non_scrive_mai(self, capsys):
+        sp = self._sp([("spotify:track:1", "Rossi", 50)])
+        analizza_playlist(sp, "pid")
+        sp.playlist_reorder_items.assert_not_called()
 
 
 class TestReorderWithRetry:
