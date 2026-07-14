@@ -5,8 +5,9 @@
   LaunchAgent di esempio: riordina automaticamente una playlist il primo del mese.
 
   Prima di usarlo:
-   1. Sostituisci __INCOLLA_QUI_URL_PLAYLIST__ con il link della playlist
-      (in Spotify: click destro sulla playlist -> Condividi -> Copia link).
+   1. Nei ProgramArguments qui sotto, sostituisci la stringa che inizia con
+      INCOLLA_QUI con il link della playlist (in Spotify: click destro sulla
+      playlist -> Condividi -> Copia link). Sostituisci SOLO quella riga.
    2. Controlla i percorsi assoluti (utente/venv) se hai spostato il progetto.
    3. Copialo in ~/Library/LaunchAgents/ e caricalo (vedi README, sezione
       "Riordino automatico programmato").
@@ -20,7 +21,7 @@
     <array>
         <string>/Users/gigi/GitHub/spotify-reorder/spotify-env/bin/spotify-reorder</string>
         <string>-p</string>
-        <string>__INCOLLA_QUI_URL_PLAYLIST__</string>
+        <string>INCOLLA_QUI_URL_PLAYLIST</string>
         <string>-c</string>
         <string>default</string>
         <string>--yes</string>
