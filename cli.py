@@ -1,5 +1,7 @@
+import argparse
+
 from auth import create_client
-from playlist import riordina_playlist, CRITERI_ORDINAMENTO
+from playlist import riordina_playlist, estrai_playlist_id, CRITERI_ORDINAMENTO
 from colori import bold, dim, cyan, blu, verde, giallo
 
 
@@ -96,7 +98,71 @@ def scegli_criterio() -> dict:
             print(giallo("  Inserisci un numero valido."))
 
 
-def main() -> None:
+def risolvi_criterio(valore: str) -> dict | None:
+    """Risolve un criterio da numero (1-N) o slug. Ritorna None se non valido."""
+    valore = valore.strip().lower()
+    if valore.isdigit():
+        n = int(valore)
+        if 1 <= n <= len(CRITERI_ORDINAMENTO):
+            return CRITERI_ORDINAMENTO[n - 1]
+        return None
+    for c in CRITERI_ORDINAMENTO:
+        if c["slug"] == valore:
+            return c
+    return None
+
+
+def stampa_lista_criteri() -> None:
+    print("\n" + bold(cyan("  Criteri di ordinamento")) + "\n")
+    for i, c in enumerate(CRITERI_ORDINAMENTO, 1):
+        default = dim(" (default)") if i == 1 else ""
+        print(f"  {blu(f'{i:>3}')}  {c['slug']:<11} {c['label']}{default}")
+    print()
+
+
+def _parse_args(argv=None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        prog="spotify-reorder",
+        description="Riordina le tue playlist Spotify da terminale, "
+                    "senza alterare la data di aggiunta dei brani.",
+    )
+    parser.add_argument(
+        "-p", "--playlist", action="append", metavar="ID_O_URL",
+        help="ID o URL di una playlist (ripetibile). Se omesso, scelta interattiva.",
+    )
+    parser.add_argument(
+        "-c", "--criterio", metavar="N_O_SLUG",
+        help="Numero (1-%d) o slug del criterio. In modalità non-interattiva "
+             "il default è il primo criterio. Vedi --lista-criteri."
+             % len(CRITERI_ORDINAMENTO),
+    )
+    parser.add_argument(
+        "-y", "--yes", action="store_true",
+        help="Applica senza chiedere conferma (utile per script e automazioni).",
+    )
+    parser.add_argument(
+        "--lista-criteri", action="store_true",
+        help="Mostra i criteri di ordinamento disponibili ed esce.",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv=None) -> None:
+    args = _parse_args(argv)
+
+    if args.lista_criteri:
+        stampa_lista_criteri()
+        return
+
+    # Valida il criterio prima di autenticarsi, così un errore fallisce subito.
+    criterio = None
+    if args.criterio is not None:
+        criterio = risolvi_criterio(args.criterio)
+        if criterio is None:
+            print(giallo(f"❌ Criterio '{args.criterio}' non valido."))
+            print(dim("   Usa --lista-criteri per vedere numeri e slug disponibili."))
+            raise SystemExit(1)
+
     print(bold(cyan("\n  🎧 Spotify Playlist Reorder\n")))
     print("⏳ Avvio autenticazione Spotify...")
     print(dim("🌐 Se necessario, il browser si aprirà per autorizzare l'app.\n"))
@@ -111,8 +177,16 @@ def main() -> None:
 
     me_id = sp.current_user()["id"]
 
-    playlist_ids = scegli_playlist(sp)
-    criterio = scegli_criterio()
+    if args.playlist:
+        playlist_ids = [estrai_playlist_id(p) for p in args.playlist]
+    else:
+        playlist_ids = scegli_playlist(sp)
+
+    # Criterio: esplicito > (interattivo: menu) > (non-interattivo: default).
+    if criterio is None:
+        criterio = scegli_criterio() if not args.playlist else CRITERI_ORDINAMENTO[0]
+
+    chiedi_conferma = not args.yes
 
     for i, playlist_id in enumerate(playlist_ids, 1):
         if len(playlist_ids) > 1:
@@ -122,7 +196,7 @@ def main() -> None:
             "https://open.spotify.com/playlist/" + playlist_id,
             criterio,
             me_id=me_id,
-            chiedi_conferma=True,
+            chiedi_conferma=chiedi_conferma,
         )
 
 

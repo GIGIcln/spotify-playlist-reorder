@@ -5,26 +5,31 @@ from colori import bold, dim, cyan, verde, giallo
 
 CRITERI_ORDINAMENTO = [
     {
+        "slug": "default",
         "label": "Artista → Data → Posizione (attuale)",
         "key": lambda t: (t["artista"], t["data_uscita"], t["posizione_album"]),
         "reverse": False,
     },
     {
+        "slug": "data-asc",
         "label": "Data di uscita (dal più vecchio)",
         "key": lambda t: t["data_uscita"],
         "reverse": False,
     },
     {
+        "slug": "data-desc",
         "label": "Data di uscita (dal più recente)",
         "key": lambda t: t["data_uscita"],
         "reverse": True,
     },
     {
+        "slug": "artista",
         "label": "Artista (A→Z)",
         "key": lambda t: t["artista"],
         "reverse": False,
     },
     {
+        "slug": "popolarita",
         "label": "Popolarità (dal più popolare)",
         "key": lambda t: t.get("popularity", 0),
         "reverse": True,

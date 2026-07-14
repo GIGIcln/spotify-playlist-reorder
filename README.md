@@ -7,10 +7,11 @@ App da **terminale** per riordinare le tue playlist Spotify secondo vari criteri
 
 - **5 criteri di ordinamento** (artista → album → traccia, data di uscita, popolarità)
 - **Batch**: seleziona e riordina più playlist in una volta
+- **Interattivo o da script**: menu guidato, oppure argomenti da riga di comando (`--playlist`, `--criterio`, `--yes`) per automazioni
 - **Anteprima + conferma** prima di applicare le modifiche
 - **Controllo proprietario**: salta con un messaggio chiaro le playlist che non puoi modificare (niente errore 403 grezzo)
-- **Preserva la data di aggiunta**: sposta i brani uno a uno invece di riscrivere la playlist
-- **Chiamate resilienti**: backoff esponenziale su errori 429 / 5xx
+- **Preserva la data di aggiunta**: sposta i brani senza riscrivere la playlist
+- **Chiamate resilienti**: backoff esponenziale su errori 429 / 5xx, spostamento a blocchi per ridurre le richieste
 - **Barra di avanzamento** (`tqdm`)
 
 ## Prerequisiti
@@ -73,6 +74,36 @@ Flusso interattivo:
 4. Scegli il criterio di ordinamento.
 5. Vedi l'**anteprima** dei primi brani nel nuovo ordine e **confermi** (`s/N`) prima di applicare.
 
+### Modalità non-interattiva (script / automazioni)
+
+Passando `--playlist` salti i menu: la playlist è quella indicata e il criterio,
+se non specificato con `--criterio`, è il primo (default). La conferma resta
+richiesta a meno che tu non aggiunga `--yes`.
+
+```bash
+# playlist esplicita, criterio default, chiede conferma
+spotify-reorder --playlist 37i9dQ...
+
+# criterio esplicito (per numero o slug) e nessuna conferma
+spotify-reorder -p 37i9dQ... -c data-asc --yes
+
+# più playlist in una volta
+spotify-reorder -p <id1> -p <id2> -y
+
+# accetta anche URL completi
+spotify-reorder -p "https://open.spotify.com/playlist/37i9dQ...?si=abc" -y
+
+# elenco dei criteri (numero + slug) senza autenticarsi
+spotify-reorder --lista-criteri
+```
+
+| Flag | Descrizione |
+|------|-------------|
+| `-p`, `--playlist` | ID o URL di una playlist. Ripetibile. Se omesso → menu interattivo. |
+| `-c`, `--criterio` | Numero (`1`–`5`) o slug del criterio. Default (con `-p`): il primo. |
+| `-y`, `--yes` | Applica senza chiedere conferma. |
+| `--lista-criteri` | Mostra i criteri disponibili ed esce. |
+
 ### Comando globale (senza attivare il venv)
 
 Il comando `spotify-reorder` installato nel venv ha uno shebang che punta al
@@ -98,20 +129,21 @@ la cartella, rifai il symlink/alias.
 
 ## Criteri di ordinamento
 
-| # | Criterio |
-|---|----------|
-| 1 | Artista → Data → Posizione *(default)* |
-| 2 | Data di uscita — dal più vecchio |
-| 3 | Data di uscita — dal più recente |
-| 4 | Artista (A→Z) |
-| 5 | Popolarità — dal più popolare |
+| # | Slug | Criterio |
+|---|------|----------|
+| 1 | `default` | Artista → Data → Posizione *(default)* |
+| 2 | `data-asc` | Data di uscita — dal più vecchio |
+| 3 | `data-desc` | Data di uscita — dal più recente |
+| 4 | `artista` | Artista (A→Z) |
+| 5 | `popolarita` | Popolarità — dal più popolare |
 
 ## Come funziona il riordino
 
 Invece di svuotare e riscrivere la playlist (che azzererebbe la "data di aggiunta"),
-l'app emette singole chiamate `playlist_reorder_items` — una per ogni brano fuori
-posto — tracciando lo `snapshot_id`. Una playlist già ordinata non genera nessuna
-chiamata.
+l'app emette chiamate `playlist_reorder_items` tracciando lo `snapshot_id`. I brani
+già contigui che finiscono nella stessa posizione target vengono spostati in blocco
+con un'unica chiamata (`range_length > 1`), riducendo il numero di richieste. Una
+playlist già ordinata non genera nessuna chiamata.
 
 ## Struttura del progetto
 
