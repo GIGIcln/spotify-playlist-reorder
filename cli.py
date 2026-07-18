@@ -1,7 +1,9 @@
 import argparse
 import os
 
-from auth import create_client, _get_app_dir
+from spotipy.oauth2 import SpotifyOauthError
+
+from auth import create_client, _get_app_dir, CACHE_PATH
 from playlist import (
     riordina_playlist,
     esporta_backup,
@@ -204,15 +206,21 @@ def _esegui(argv=None) -> None:
     print("⏳ Avvio autenticazione Spotify...")
     print(dim("🌐 Se necessario, il browser si aprirà per autorizzare l'app.\n"))
 
+    # L'auth vera avviene alla prima chiamata API: il messaggio di successo
+    # ha senso solo dopo che current_user() è andata a buon fine.
     try:
         sp = create_client(open_browser=not args.no_browser)
+        me_id = sp.current_user()["id"]
     except ValueError as e:
         print(giallo(f"❌ {e}"))
         raise SystemExit(1)
+    except SpotifyOauthError as e:
+        print(giallo(f"❌ Autenticazione fallita: {e}"))
+        print(dim(f"   Il token salvato potrebbe essere scaduto o revocato: elimina "
+                  f"{CACHE_PATH} e riprova per rifare il login."))
+        raise SystemExit(1)
 
     print(verde("✅ Autenticazione completata con successo!"))
-
-    me_id = sp.current_user()["id"]
 
     if args.restore:
         ripristina_backup(
