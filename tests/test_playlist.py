@@ -10,7 +10,9 @@ from playlist import (
     normalizza_data,
     calcola_ordine_target,
     applica_riordinamento,
+    espandi_ordine_assoluto,
     fetch_tracks,
+    fetch_tracks_e_totale,
     riordina_playlist,
     esporta_backup,
     ripristina_backup,
@@ -518,3 +520,90 @@ class TestMostraAnteprima:
         # il primo brano mostrato deve essere quello in testa a target_order (alpha)
         assert out.index("alpha") < out.index("zeta")
         assert "(2019)" in out
+
+
+class TestPosizioniAssolute:
+    """I brani scartati non devono sfasare le posizioni passate all'API."""
+
+    def _sp(self, contents):
+        sp = MagicMock()
+        sp.playlist_items.return_value = {
+            "items": [{"track": c} for c in contents],
+            "next": None,
+        }
+        sp.next.return_value = None
+        return sp
+
+    def _track(self, uri, **overrides):
+        base = {
+            "type": "track",
+            "uri": uri,
+            "name": uri,
+            "artists": [{"name": "A"}],
+            "album": {"release_date": "2020-01-01"},
+        }
+        base.update(overrides)
+        return base
+
+    def test_posizione_e_quella_reale_non_quella_filtrata(self):
+        contents = [
+            self._track("locale", is_local=True),
+            self._track("a"),
+            self._track("podcast", type="episode"),
+            self._track("b"),
+        ]
+        tracks, totale = fetch_tracks_e_totale(self._sp(contents), "pid")
+        assert totale == 4
+        # 'a' sta in posizione 1 e 'b' in posizione 3, non 0 e 1.
+        assert [t["posizione"] for t in tracks] == [1, 3]
+
+    def test_totale_conta_anche_gli_elementi_scartati(self):
+        contents = [self._track("locale", is_local=True), self._track("a")]
+        tracks, totale = fetch_tracks_e_totale(self._sp(contents), "pid")
+        assert len(tracks) == 1
+        assert totale == 2
+
+    def test_senza_scarti_coincide_con_target_order(self):
+        tracks = [{"posizione": 0}, {"posizione": 1}, {"posizione": 2}]
+        assert espandi_ordine_assoluto(tracks, [2, 0, 1], 3) == [2, 0, 1]
+
+    def test_elemento_scartato_resta_al_suo_posto(self):
+        # Playlist [T0, LOCALE, T2]; i due brani vanno invertiti tra loro.
+        tracks = [{"posizione": 0}, {"posizione": 2}]
+        # Senza la traduzione uscirebbe [1, 0, 2]: il locale finirebbe in testa
+        # e T2 non si muoverebbe affatto.
+        assert espandi_ordine_assoluto(tracks, [1, 0], 3) == [2, 1, 0]
+
+    def test_piu_scarti_intercalati(self):
+        # Playlist di 6 elementi, ordinabili in posizione 1, 3, 4.
+        tracks = [{"posizione": 1}, {"posizione": 3}, {"posizione": 4}]
+        # I tre brani vanno messi in ordine inverso tra loro.
+        assoluto = espandi_ordine_assoluto(tracks, [2, 1, 0], 6)
+        assert assoluto == [0, 4, 2, 3, 1, 5]
+        # Le posizioni non ordinabili restano identità.
+        assert [assoluto[i] for i in (0, 2, 5)] == [0, 2, 5]
+
+    def test_permutazione_valida_su_tutta_la_playlist(self):
+        tracks = [{"posizione": 1}, {"posizione": 3}, {"posizione": 4}]
+        assoluto = espandi_ordine_assoluto(tracks, [2, 0, 1], 6)
+        assert sorted(assoluto) == list(range(6))
+
+    def test_riordino_end_to_end_con_brano_locale(self):
+        # Regressione: playlist [b, LOCALE, a] ordinata per artista deve
+        # diventare [a, LOCALE, b], non rimescolarsi.
+        contents = [
+            self._track("b", artists=[{"name": "b"}]),
+            self._track("locale", artists=[{"name": "a"}], is_local=True),
+            self._track("a", artists=[{"name": "a"}]),
+        ]
+        sp = self._sp(contents)
+        sp.playlist.return_value = {"name": "P", "owner": {"id": "me"}, "collaborative": False}
+
+        fake = _FakeSpotify(3)
+        sp.playlist_reorder_items.side_effect = fake.playlist_reorder_items
+
+        riordina_playlist(sp, "https://open.spotify.com/playlist/pid",
+                          me_id="me", chiedi_conferma=False)
+
+        # posizione originale 2 ('a') in testa, il locale fermo, 'b' in coda
+        assert fake.order == [2, 1, 0]
