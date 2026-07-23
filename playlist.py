@@ -39,7 +39,15 @@ DEFAULT_CRITERIO = CRITERI_ORDINAMENTO[0]
 
 
 def estrai_playlist_id(url: str) -> str:
-    return url.split("/")[-1].split("?")[0]
+    """Estrae l'ID da un URL, da un URI `spotify:playlist:...` o da un ID nudo.
+
+    Tollera la query string (`?si=...`), gli slash finali e i prefissi di lingua
+    che Spotify aggiunge quando copi il link dall'app (`/intl-it/playlist/...`).
+    """
+    valore = url.strip().split("?")[0].rstrip("/")
+    if valore.startswith("spotify:"):
+        return valore.split(":")[-1]
+    return valore.split("/")[-1]
 
 
 def normalizza_data(data_str: str) -> str:

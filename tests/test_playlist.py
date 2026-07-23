@@ -39,6 +39,22 @@ class TestEstraiPlaylistId:
     def test_solo_id(self):
         assert estrai_playlist_id("abc123") == "abc123"
 
+    def test_uri_spotify(self):
+        # "Copia link Spotify URI" dal client desktop.
+        assert estrai_playlist_id("spotify:playlist:abc123") == "abc123"
+
+    def test_url_con_slash_finale(self):
+        assert estrai_playlist_id("https://open.spotify.com/playlist/abc123/") == "abc123"
+
+    def test_url_con_slash_finale_e_query(self):
+        assert estrai_playlist_id("https://open.spotify.com/playlist/abc123/?si=xyz") == "abc123"
+
+    def test_url_con_prefisso_lingua(self):
+        assert estrai_playlist_id("https://open.spotify.com/intl-it/playlist/abc123") == "abc123"
+
+    def test_spazi_attorno(self):
+        assert estrai_playlist_id("  https://open.spotify.com/playlist/abc123  ") == "abc123"
+
 
 class TestNormalizzaData:
     def test_data_completa(self):
