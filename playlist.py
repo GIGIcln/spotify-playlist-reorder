@@ -52,11 +52,20 @@ def normalizza_data(data_str: str) -> str:
     return f"{anno}-{mese}-{giorno}"
 
 
-def fetch_tracks(sp: Spotify, playlist_id: str) -> list[dict]:
+def fetch_tracks_e_totale(sp: Spotify, playlist_id: str) -> tuple[list[dict], int]:
+    """Scarica i brani ordinabili e il numero totale di elementi della playlist.
+
+    I file locali e i non-brani (podcast) vengono scartati, ma ogni brano tenuto
+    porta con sé la sua `posizione` assoluta nella playlist: l'API Spotify
+    ragiona per posizione reale, non per indice nella lista filtrata.
+    """
     tracks = []
+    totale = 0
     results = sp.playlist_items(playlist_id, additional_types=["track"])
     while results:
         for entry in results["items"]:
+            posizione = totale
+            totale += 1
             content = entry.get("item") or entry.get("track")
             if content is None or content.get("type") != "track":
                 continue
@@ -72,10 +81,18 @@ def fetch_tracks(sp: Spotify, playlist_id: str) -> list[dict]:
                     "artista_nome": artisti[0]["name"].strip() if artisti else "Sconosciuto",
                     "data_uscita": normalizza_data(album.get("release_date")),
                     "posizione_album": content.get("track_number", 0),
+                    "posizione": posizione,
                 })
             except (KeyError, IndexError, TypeError, AttributeError) as e:
                 print(f"⚠️ Traccia ignorata: {e}")
         results = sp.next(results) if results.get("next") else None
+    return tracks, totale
+
+
+def fetch_tracks(sp: Spotify, playlist_id: str) -> list[dict]:
+    """Solo i brani ordinabili. Per riordinare serve anche il totale: vedi
+    `fetch_tracks_e_totale`."""
+    tracks, _ = fetch_tracks_e_totale(sp, playlist_id)
     return tracks
 
 
@@ -89,6 +106,29 @@ def calcola_ordine_target(tracks: list[dict], criterio: dict = None) -> list[int
         reverse=criterio["reverse"],
     )
     return [orig_idx for orig_idx, _ in indexed_sorted]
+
+
+def espandi_ordine_assoluto(tracks: list[dict], target_order: list[int], totale: int) -> list[int]:
+    """Traduce un ordine calcolato sui soli brani ordinabili in una permutazione
+    di tutte le posizioni della playlist.
+
+    `fetch_tracks_e_totale` scarta i file locali e i non-brani, quindi gli indici
+    di `target_order` si riferiscono alla lista filtrata, mentre
+    `playlist_reorder_items` ragiona per posizione assoluta. Senza questa
+    traduzione ogni elemento scartato sfasa tutte le posizioni successive e il
+    riordino finisce per rimescolare la playlist.
+
+    Gli elementi scartati restano inchiodati dove sono; i brani ordinabili
+    vengono ridistribuiti, nell'ordine voluto, sulle sole posizioni che già
+    occupavano. Se non c'è nulla da scartare, il risultato coincide con
+    `target_order`.
+    """
+    slot = sorted(t["posizione"] for t in tracks)
+    ordinati = [tracks[i]["posizione"] for i in target_order]
+    assoluto = list(range(totale))
+    for posizione_finale, posizione_originale in zip(slot, ordinati):
+        assoluto[posizione_finale] = posizione_originale
+    return assoluto
 
 
 def _reorder_with_retry(sp: Spotify, playlist_id: str, max_retries: int = 5, **kwargs) -> dict:
@@ -225,7 +265,7 @@ def riordina_playlist(
             return
 
     print("⏳ Download dei brani e metadati in corso...")
-    tracks = fetch_tracks(sp, playlist_id)
+    tracks, totale = fetch_tracks_e_totale(sp, playlist_id)
 
     if not tracks:
         print("❌ Nessun brano valido trovato.")
@@ -233,9 +273,14 @@ def riordina_playlist(
         return
 
     print(f"🎵 Trovati {len(tracks)} brani. Calcolo dell'ordine in corso...")
+    scartati = totale - len(tracks)
+    if scartati:
+        print(dim(f"   {scartati} elementi non ordinabili (file locali o podcast) "
+                  f"restano al loro posto."))
 
     target_order = calcola_ordine_target(tracks, criterio)
-    if target_order == list(range(len(tracks))):
+    ordine_assoluto = espandi_ordine_assoluto(tracks, target_order, totale)
+    if ordine_assoluto == list(range(totale)):
         print("✅ La playlist è già nell'ordine corretto. Nessuna modifica necessaria.")
         return
 
@@ -252,7 +297,7 @@ def riordina_playlist(
 
     print("💾 Riordinamento su Spotify in corso " + dim("(date di aggiunta preservate)") + "...")
     try:
-        moves = applica_riordinamento(sp, playlist_id, target_order)
+        moves = applica_riordinamento(sp, playlist_id, ordine_assoluto)
         print(verde(f"✅ Playlist riordinata con successo!") + dim(f" ({moves} spostamenti effettuati)"))
     except Exception as e:
         print(giallo(f"❌ Errore durante il riordinamento: {e}"))
@@ -310,7 +355,7 @@ def ripristina_backup(
             return
 
     print("⏳ Confronto con lo stato attuale della playlist...")
-    current = fetch_tracks(sp, playlist_id)
+    current, totale = fetch_tracks_e_totale(sp, playlist_id)
     current_uris = [t["uri"] for t in current]
 
     if Counter(saved_uris) != Counter(current_uris):
@@ -326,8 +371,9 @@ def ripristina_backup(
     for idx, t in enumerate(current):
         buckets[t["uri"]].append(idx)
     target_order = [buckets[uri].popleft() for uri in saved_uris]
+    ordine_assoluto = espandi_ordine_assoluto(current, target_order, totale)
 
-    if target_order == list(range(len(current))):
+    if ordine_assoluto == list(range(totale)):
         print("✅ La playlist è già nell'ordine del backup. Nessuna modifica necessaria.")
         return
 
@@ -344,7 +390,7 @@ def ripristina_backup(
 
     print("💾 Ripristino su Spotify in corso " + dim("(date di aggiunta preservate)") + "...")
     try:
-        moves = applica_riordinamento(sp, playlist_id, target_order)
+        moves = applica_riordinamento(sp, playlist_id, ordine_assoluto)
         print(verde("✅ Playlist ripristinata dal backup!") + dim(f" ({moves} spostamenti effettuati)"))
     except Exception as e:
         print(giallo(f"❌ Errore durante il ripristino: {e}"))
