@@ -244,3 +244,7 @@ pytest
 - **Token non valido / errori di auth** — elimina `.spotify_token_cache` e riavvia.
 - **"comando non trovato: spotify-reorder"** — attiva l'ambiente virtuale (`source spotify-env/bin/activate`).
 - **Una playlist viene saltata (403)** — puoi riordinare solo playlist tue o collaborative; l'app te lo segnala prima di procedere.
+
+## Licenza
+
+Rilasciato sotto licenza [MIT](LICENSE).
