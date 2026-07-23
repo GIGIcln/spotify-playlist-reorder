@@ -1,0 +1,28 @@
+version: 2
+
+updates:
+  # Le action usate da .github/workflows/test.yml: sono pinnate a major
+  # (actions/checkout@v5, actions/setup-python@v6) e senza aggiornamenti
+  # restano indietro in silenzio, comprese le correzioni di sicurezza.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: ci
+    labels:
+      - dipendenze
+
+  # Le dipendenze runtime dichiarate in pyproject.toml (spotipy, python-dotenv,
+  # tqdm). Sono vincoli aperti (`>=`), quindi qui interessano soprattutto le
+  # nuove major che potrebbero rompere: meglio vederle in una PR con la CI che
+  # gira, invece che al primo `pip install` di un utente.
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: chore
+    labels:
+      - dipendenze
+    open-pull-requests-limit: 5
