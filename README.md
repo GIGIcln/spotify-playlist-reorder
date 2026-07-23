@@ -5,7 +5,7 @@ App da **terminale** per riordinare le tue playlist Spotify secondo vari criteri
 
 ## Caratteristiche
 
-- **4 criteri di ordinamento** (artista → album → traccia, data di uscita)
+- **4 criteri di ordinamento**: artista → data → posizione nell'album, data di uscita (crescente o decrescente), artista A→Z
 - **Batch**: seleziona e riordina più playlist in una volta
 - **Interattivo o da script**: menu guidato, oppure argomenti da riga di comando (`--playlist`, `--criterio`, `--yes`) per automazioni
 - **Anteprima + conferma** prima di applicare le modifiche
@@ -105,7 +105,7 @@ spotify-reorder --lista-criteri
 | Flag | Descrizione |
 |------|-------------|
 | `-p`, `--playlist` | ID, URL o URI `spotify:` di una playlist. Ripetibile. Se omesso → menu interattivo. |
-| `-c`, `--criterio` | Numero (`1`–`5`) o slug del criterio. Default (con `-p`): il primo. |
+| `-c`, `--criterio` | Numero (`1`–`4`) o slug del criterio. Default (con `-p`): il primo. |
 | `-y`, `--yes` | Applica senza chiedere conferma. |
 | `--dry-run` | Mostra l'anteprima del nuovo ordine senza applicare modifiche. |
 | `--backup` | Salva l'ordine attuale della/e playlist in un file, senza riordinare. |
