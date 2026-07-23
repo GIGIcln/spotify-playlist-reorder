@@ -91,8 +91,9 @@ spotify-reorder -p 37i9dQ... -c data-asc --yes
 # più playlist in una volta
 spotify-reorder -p <id1> -p <id2> -y
 
-# accetta anche URL completi
+# accetta ID nudo, URL completo o URI spotify:
 spotify-reorder -p "https://open.spotify.com/playlist/37i9dQ...?si=abc" -y
+spotify-reorder -p "spotify:playlist:37i9dQ..." -y
 
 # anteprima del nuovo ordine, senza toccare la playlist
 spotify-reorder -p 37i9dQ... -c data-asc --dry-run
@@ -103,7 +104,7 @@ spotify-reorder --lista-criteri
 
 | Flag | Descrizione |
 |------|-------------|
-| `-p`, `--playlist` | ID o URL di una playlist. Ripetibile. Se omesso → menu interattivo. |
+| `-p`, `--playlist` | ID, URL o URI `spotify:` di una playlist. Ripetibile. Se omesso → menu interattivo. |
 | `-c`, `--criterio` | Numero (`1`–`5`) o slug del criterio. Default (con `-p`): il primo. |
 | `-y`, `--yes` | Applica senza chiedere conferma. |
 | `--dry-run` | Mostra l'anteprima del nuovo ordine senza applicare modifiche. |
