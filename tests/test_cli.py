@@ -1,3 +1,4 @@
+import json
 import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -193,7 +194,8 @@ class TestMain:
 
     def test_restore_chiama_ripristina(self, tmp_path):
         f = tmp_path / "bk.json"
-        f.write_text("{}")
+        f.write_text(json.dumps({"playlist_id": "pid", "playlist_name": "P",
+                                 "tracks": [{"uri": "spotify:track:a"}]}))
         sp = MagicMock()
         sp.current_user.return_value = {"id": "me"}
         with patch("cli.create_client", return_value=sp), \

@@ -6,6 +6,7 @@ from spotipy.oauth2 import SpotifyOauthError
 from auth import create_client, _get_app_dir, CACHE_PATH
 from playlist import (
     riordina_playlist,
+    leggi_backup,
     esporta_backup,
     ripristina_backup,
     analizza_playlist,
@@ -202,9 +203,13 @@ def _esegui(argv=None) -> None:
         print(giallo(f"❌ File di backup non trovato: {args.restore}"))
         raise SystemExit(1)
 
+    if args.restore:
+        leggi_backup(args.restore)
+
     print(bold(cyan("\n  🎧 Spotify Playlist Reorder\n")))
     print("⏳ Avvio autenticazione Spotify...")
-    print(dim("🌐 Se necessario, il browser si aprirà per autorizzare l'app.\n"))
+    if not args.no_browser:
+        print(dim("🌐 Se necessario, il browser si aprirà per autorizzare l'app.\n"))
 
     # L'auth vera avviene alla prima chiamata API: il messaggio di successo
     # ha senso solo dopo che current_user() è andata a buon fine.
@@ -223,10 +228,12 @@ def _esegui(argv=None) -> None:
     print(verde("✅ Autenticazione completata con successo!"))
 
     if args.restore:
-        ripristina_backup(
+        esito = ripristina_backup(
             sp, args.restore, me_id=me_id,
             chiedi_conferma=not args.yes, dry_run=args.dry_run,
         )
+        if esito == "saltata":
+            raise SystemExit(1)
         return
 
     if args.playlist:
@@ -234,39 +241,38 @@ def _esegui(argv=None) -> None:
     else:
         playlist_ids = scegli_playlist(sp)
 
-    if args.analizza:
-        for playlist_id in playlist_ids:
-            analizza_playlist(sp, playlist_id)
-        return
-
-    if args.backup:
-        dest = os.path.join(_get_app_dir(), "backups")
-        for playlist_id in playlist_ids:
-            path = esporta_backup(sp, playlist_id, dest)
-            print(verde("💾 Backup salvato: ") + dim(path))
-        return
-
-    # Criterio: esplicito > (interattivo: menu) > (non-interattivo: default).
-    if criterio is None:
+    if criterio is None and not (args.analizza or args.backup):
         criterio = scegli_criterio() if not args.playlist else CRITERI_ORDINAMENTO[0]
-
-    chiedi_conferma = not args.yes
     backup_dir = os.path.join(_get_app_dir(), "backups")
-
+    fallite = 0
     for i, playlist_id in enumerate(playlist_ids, 1):
         if len(playlist_ids) > 1:
             print(bold(cyan(f"\n▶ Playlist {i}/{len(playlist_ids)}")))
-        if args.backup_before and not args.dry_run:
-            path = esporta_backup(sp, playlist_id, backup_dir)
-            print(verde("💾 Backup salvato: ") + dim(path))
-        riordina_playlist(
-            sp,
-            "https://open.spotify.com/playlist/" + playlist_id,
-            criterio,
-            me_id=me_id,
-            chiedi_conferma=chiedi_conferma,
-            dry_run=args.dry_run,
-        )
+        try:
+            if args.analizza:
+                analizza_playlist(sp, playlist_id)
+                esito = "analizzata"
+            elif args.backup:
+                path = esporta_backup(sp, playlist_id, backup_dir)
+                print(verde("💾 Backup salvato: ") + dim(path))
+                esito = "backup salvato"
+            else:
+                if args.backup_before and not args.dry_run:
+                    path = esporta_backup(sp, playlist_id, backup_dir)
+                    print(verde("💾 Backup salvato: ") + dim(path))
+                esito = riordina_playlist(
+                    sp, "https://open.spotify.com/playlist/" + playlist_id, criterio,
+                    me_id=me_id, chiedi_conferma=not args.yes, dry_run=args.dry_run,
+                )
+            if esito == "saltata":
+                fallite += 1
+            print(dim(f"Esito {playlist_id}: {esito}"))
+        except Exception as e:
+            fallite += 1
+            print(giallo(f"❌ {playlist_id}: {e}"))
+    print(dim(f"Riepilogo: {len(playlist_ids)} playlist elaborate · {fallite} fallite o non accessibili."))
+    if fallite:
+        raise SystemExit(1)
 
 
 def main(argv=None) -> None:
@@ -275,6 +281,9 @@ def main(argv=None) -> None:
     except (KeyboardInterrupt, EOFError):
         print(dim("\n↩️  Operazione annullata."))
         raise SystemExit(130)
+    except Exception as e:
+        print(giallo(f"❌ {e}"))
+        raise SystemExit(1) from e
 
 
 if __name__ == "__main__":

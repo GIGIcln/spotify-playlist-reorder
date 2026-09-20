@@ -1,6 +1,7 @@
 import sys
 import os
 import json
+import copy
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import pytest
@@ -214,6 +215,45 @@ class TestFetchTracks:
         assert [t["uri"] for t in tracks] == ["spotify:track:ok"]
 
 
+class _Stato:
+    """Stato mutabile di una playlist finta.
+
+    Applica davvero i riordini e fa avanzare lo snapshot: senza questo la
+    verifica finale di `riordina_playlist` rileggerebbe l'ordine di partenza.
+    """
+
+    def __init__(self, entries, owner="me"):
+        self.entries = list(entries)
+        self.owner = owner
+        self.version = 0
+
+    def playlist(self, playlist_id, fields=None):
+        return {"snapshot_id": f"v{self.version}", "name": "P",
+                "owner": {"id": self.owner}, "collaborative": False}
+
+    def playlist_items(self, playlist_id, **kwargs):
+        return {"items": copy.deepcopy(self.entries), "next": None}
+
+    def playlist_reorder_items(self, playlist_id, range_start, insert_before,
+                               range_length, snapshot_id=None):
+        block = self.entries[range_start:range_start + range_length]
+        rest = self.entries[:range_start] + self.entries[range_start + range_length:]
+        ib = insert_before - range_length if insert_before > range_start else insert_before
+        self.entries = rest[:ib] + block + rest[ib:]
+        self.version += 1
+        return {"snapshot_id": f"r{self.version}"}
+
+
+def _mock_da_stato(stato):
+    """MagicMock guidato da `stato`: conserva assert_called/assert_not_called."""
+    sp = MagicMock()
+    sp.playlist.side_effect = stato.playlist
+    sp.playlist_items.side_effect = stato.playlist_items
+    sp.playlist_reorder_items.side_effect = stato.playlist_reorder_items
+    sp.next.return_value = None
+    return sp
+
+
 class TestRiordinaPlaylistDryRun:
     def _sp_con_due_tracce(self):
         # Due tracce in ordine artista "b","a": il criterio default le inverte,
@@ -226,14 +266,7 @@ class TestRiordinaPlaylistDryRun:
                 "artists": [{"name": artista}],
                 "album": {"release_date": "2020-01-01"},
             }
-        sp = MagicMock()
-        sp.playlist.return_value = {"name": "P", "owner": {"id": "me"}, "collaborative": False}
-        sp.playlist_items.return_value = {
-            "items": [{"track": _track("b")}, {"track": _track("a")}],
-            "next": None,
-        }
-        sp.next.return_value = None
-        return sp
+        return _mock_da_stato(_Stato([{"track": _track("b")}, {"track": _track("a")}]))
 
     def test_dry_run_non_scrive(self, capsys):
         sp = self._sp_con_due_tracce()
@@ -252,12 +285,7 @@ def _sp_con_tracce(uris, owner="me"):
             "type": "track", "uri": uri, "name": uri.split(":")[-1],
             "artists": [{"name": "A"}], "album": {"release_date": "2020-01-01"},
         }
-    sp = MagicMock()
-    sp.playlist.return_value = {"name": "P", "owner": {"id": owner}, "collaborative": False}
-    sp.playlist_items.return_value = {"items": [{"track": _content(u)} for u in uris], "next": None}
-    sp.next.return_value = None
-    sp.playlist_reorder_items.return_value = {"snapshot_id": "s"}
-    return sp
+    return _mock_da_stato(_Stato([{"track": _content(u)} for u in uris], owner=owner))
 
 
 class TestEsportaBackup:
@@ -292,7 +320,8 @@ class TestRipristinaBackup:
         # Backup [a, b]; attuale [a, c] -> insiemi diversi -> annulla, nessuna scrittura.
         bk = self._scrivi_backup(tmp_path, ["spotify:track:a", "spotify:track:b"])
         sp = _sp_con_tracce(["spotify:track:a", "spotify:track:c"])
-        ripristina_backup(sp, bk, me_id="me")
+        with pytest.raises(ValueError, match="cambiata"):
+            ripristina_backup(sp, bk, me_id="me")
         sp.playlist_reorder_items.assert_not_called()
         assert "annullato" in capsys.readouterr().out
 
@@ -612,14 +641,9 @@ class TestPosizioniAssolute:
             self._track("locale", artists=[{"name": "a"}], is_local=True),
             self._track("a", artists=[{"name": "a"}]),
         ]
-        sp = self._sp(contents)
-        sp.playlist.return_value = {"name": "P", "owner": {"id": "me"}, "collaborative": False}
-
-        fake = _FakeSpotify(3)
-        sp.playlist_reorder_items.side_effect = fake.playlist_reorder_items
-
-        riordina_playlist(sp, "https://open.spotify.com/playlist/pid",
+        stato = _Stato([{"track": c} for c in contents])
+        riordina_playlist(_mock_da_stato(stato), "https://open.spotify.com/playlist/pid",
                           me_id="me", chiedi_conferma=False)
 
-        # posizione originale 2 ('a') in testa, il locale fermo, 'b' in coda
-        assert fake.order == [2, 1, 0]
+        # 'a' in testa, il locale fermo in mezzo, 'b' in coda
+        assert [e["track"]["uri"] for e in stato.entries] == ["a", "locale", "b"]

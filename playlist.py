@@ -1,6 +1,9 @@
 import json
 import os
 import time
+import tempfile
+import uuid
+import re
 from collections import Counter, defaultdict, deque
 from datetime import datetime
 
@@ -67,34 +70,71 @@ def fetch_tracks_e_totale(sp: Spotify, playlist_id: str) -> tuple[list[dict], in
     porta con sé la sua `posizione` assoluta nella playlist: l'API Spotify
     ragiona per posizione reale, non per indice nella lista filtrata.
     """
-    tracks = []
-    totale = 0
-    results = sp.playlist_items(playlist_id, additional_types=["track"])
+    entries = _fetch_entries(sp, playlist_id)
+    return _tracks_da_entries(entries), len(entries)
+
+
+def _fetch_entries(sp, playlist_id):
+    entries = []
+    results = sp.playlist_items(playlist_id, additional_types=["track", "episode"])
     while results:
-        for entry in results["items"]:
-            posizione = totale
-            totale += 1
-            content = entry.get("item") or entry.get("track")
-            if content is None or content.get("type") != "track":
-                continue
-            if content.get("is_local", False) or not content.get("uri"):
-                continue
-            album = content.get("album") or {}
-            artisti = content.get("artists") or []
-            try:
-                tracks.append({
-                    "uri": content["uri"],
-                    "nome": content.get("name", "Sconosciuto"),
-                    "artista": artisti[0]["name"].strip().lower() if artisti else "zzz_unknown",
-                    "artista_nome": artisti[0]["name"].strip() if artisti else "Sconosciuto",
-                    "data_uscita": normalizza_data(album.get("release_date")),
-                    "posizione_album": content.get("track_number", 0),
-                    "posizione": posizione,
-                })
-            except (KeyError, IndexError, TypeError, AttributeError) as e:
-                print(f"⚠️ Traccia ignorata: {e}")
+        entries.extend(results["items"])
         results = sp.next(results) if results.get("next") else None
-    return tracks, totale
+    return entries
+
+
+def _tracks_da_entries(entries):
+    tracks = []
+    for posizione, entry in enumerate(entries):
+        content = entry.get("item") or entry.get("track")
+        if not content or content.get("type") != "track":
+            continue
+        if content.get("is_local", False) or not content.get("uri"):
+            continue
+        album = content.get("album") or {}
+        artisti = content.get("artists") or []
+        try:
+            tracks.append({
+                "uri": content["uri"], "nome": content.get("name", "Sconosciuto"),
+                "artista": artisti[0]["name"].strip().lower() if artisti else "zzz_unknown",
+                "artista_nome": artisti[0]["name"].strip() if artisti else "Sconosciuto",
+                "data_uscita": normalizza_data(album.get("release_date")),
+                "posizione_album": content.get("track_number", 0), "posizione": posizione,
+            })
+        except (KeyError, IndexError, TypeError, AttributeError) as e:
+            print(f"⚠️ Traccia ignorata: {e}")
+    return tracks
+
+
+def _snapshot(sp, playlist_id):
+    value = sp.playlist(playlist_id, fields="snapshot_id").get("snapshot_id")
+    if not isinstance(value, str) or not value:
+        raise RuntimeError("Snapshot mancante: impossibile verificare la playlist.")
+    return value
+
+
+def _identita(entry):
+    content = entry.get("item") or entry.get("track") or {}
+    return {"uri": content.get("uri"), "type": content.get("type"),
+            "is_local": bool(content.get("is_local", False)),
+            "added_at": entry.get("added_at")}
+
+
+def _leggi_stato(sp, playlist_id):
+    snapshot = _snapshot(sp, playlist_id)
+    entries = _fetch_entries(sp, playlist_id)
+    if _snapshot(sp, playlist_id) != snapshot:
+        raise RuntimeError("Playlist cambiata durante la lettura: riprova.")
+    return snapshot, entries
+
+
+def _applica_verificato(sp, playlist_id, ordine, snapshot, entries):
+    moves = applica_riordinamento(sp, playlist_id, ordine, snapshot_id=snapshot)
+    _, final = _leggi_stato(sp, playlist_id)
+    expected = [_identita(entries[i]) for i in ordine]
+    if [_identita(e) for e in final] != expected:
+        raise RuntimeError("La verifica finale non coincide: ordine parziale o playlist modificata. Rileggi la playlist prima di riprovare.")
+    return moves
 
 
 def fetch_tracks(sp: Spotify, playlist_id: str) -> list[dict]:
@@ -160,6 +200,7 @@ def applica_riordinamento(
     playlist_id: str,
     target_order: list[int],
     on_progress=None,
+    snapshot_id=None,
 ) -> int:
     """Reorder playlist tracks. on_progress(done, total) is called after each step.
 
@@ -170,9 +211,16 @@ def applica_riordinamento(
     si trova il prossimo brano e, se combacia con un blocco già contiguo, lo sposta
     con un'unica chiamata (`range_length > 1`) invece di una per brano.
     """
+    if sorted(target_order) != list(range(len(target_order))):
+        raise ValueError("Ordine non valido: deve contenere tutte le posizioni una sola volta.")
+    # Unico controllo possibile: lo snapshot_id di GET /playlists/{id} e quello
+    # restituito da playlist_reorder_items appartengono a serie diverse, quindi
+    # confrontarli dopo il primo spostamento falliva sempre. Da li in poi la
+    # protezione la fa Spotify, che rifiuta la chiamata con snapshot_id stale.
+    if snapshot_id is not None and _snapshot(sp, playlist_id) != snapshot_id:
+        raise RuntimeError("Playlist cambiata: riordino annullato.")
     current_order = list(range(len(target_order)))
     pos_of = {v: idx for idx, v in enumerate(current_order)}
-    snapshot_id = None
     moves = 0
     total = len(target_order)
 
@@ -201,6 +249,8 @@ def applica_riordinamento(
                     snapshot_id=snapshot_id,
                 )
                 snapshot_id = result.get("snapshot_id")
+                if not isinstance(snapshot_id, str) or not snapshot_id:
+                    raise RuntimeError("Risposta senza snapshot: esito incerto, riordino interrotto.")
                 moves += 1
 
                 block = current_order[p:p + k]
@@ -270,15 +320,16 @@ def riordina_playlist(
         if not modificabile:
             print(giallo(f"⚠️  Salto: {dettaglio}."))
             print(dim("   Non hai i permessi per riordinarla (Spotify risponderebbe 403 Forbidden)."))
-            return
+            return "saltata"
 
     print("⏳ Download dei brani e metadati in corso...")
-    tracks, totale = fetch_tracks_e_totale(sp, playlist_id)
+    snapshot, entries = _leggi_stato(sp, playlist_id)
+    tracks, totale = _tracks_da_entries(entries), len(entries)
 
     if not tracks:
         print("❌ Nessun brano valido trovato.")
         print("💡 Controlla che la playlist contenga canzoni (non podcast) e che non siano file locali.")
-        return
+        return "invariata"
 
     print(f"🎵 Trovati {len(tracks)} brani. Calcolo dell'ordine in corso...")
     scartati = totale - len(tracks)
@@ -290,25 +341,26 @@ def riordina_playlist(
     ordine_assoluto = espandi_ordine_assoluto(tracks, target_order, totale)
     if ordine_assoluto == list(range(totale)):
         print("✅ La playlist è già nell'ordine corretto. Nessuna modifica necessaria.")
-        return
+        return "invariata"
 
     if dry_run:
         _mostra_anteprima(tracks, target_order)
         print(dim("\n🔍 Dry-run: nessuna modifica applicata alla playlist."))
-        return
+        return "anteprima"
 
     if chiedi_conferma:
         _mostra_anteprima(tracks, target_order)
         if not _conferma_interattiva(f"\n{giallo('›')} Applicare questo ordine alla playlist? {dim('(s/N)')}: "):
             print(dim("↩️  Operazione annullata, la playlist non è stata modificata."))
-            return
+            return "annullata"
 
     print("💾 Riordinamento su Spotify in corso " + dim("(date di aggiunta preservate)") + "...")
     try:
-        moves = applica_riordinamento(sp, playlist_id, ordine_assoluto)
+        moves = _applica_verificato(sp, playlist_id, ordine_assoluto, snapshot, entries)
         print(verde(f"✅ Playlist riordinata con successo!") + dim(f" ({moves} spostamenti effettuati)"))
+        return "riordinata"
     except Exception as e:
-        print(giallo(f"❌ Errore durante il riordinamento: {e}"))
+        raise RuntimeError(f"Riordinamento interrotto, ordine potenzialmente parziale: {e}") from e
 
 
 def esporta_backup(sp: Spotify, playlist_id: str, dest_dir: str = ".") -> str:
@@ -322,20 +374,58 @@ def esporta_backup(sp: Spotify, playlist_id: str, dest_dir: str = ".") -> str:
     except Exception:
         info = {}
     nome = info.get("name", playlist_id)
-    tracks = fetch_tracks(sp, playlist_id)
-
+    snapshot, entries = _leggi_stato(sp, playlist_id)
+    tracks = _tracks_da_entries(entries)
     data = {
-        "playlist_id": playlist_id,
-        "playlist_name": nome,
-        "created_at": datetime.now().isoformat(timespec="seconds"),
+        "version": 2, "playlist_id": playlist_id, "playlist_name": nome,
+        "snapshot_id": snapshot, "created_at": datetime.now().isoformat(timespec="seconds"),
+        "items": [_identita(e) for e in entries],
         "tracks": [{"uri": t["uri"], "nome": f"{t['artista']} — {t['nome']}"} for t in tracks],
     }
-
+    if not re.fullmatch(r"[A-Za-z0-9]+", playlist_id):
+        raise ValueError("ID playlist non valido per il backup.")
     os.makedirs(dest_dir, exist_ok=True)
-    path = os.path.join(dest_dir, f"{playlist_id}-{datetime.now():%Y%m%d-%H%M%S}.json")
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    path = os.path.join(dest_dir, f"{playlist_id}-{datetime.now():%Y%m%d-%H%M%S}-{uuid.uuid4().hex}.json")
+    temp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=dest_dir, delete=False) as f:
+            temp_path = f.name
+            json.dump(data, f, ensure_ascii=False, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(temp_path, path)
+    finally:
+        if temp_path and os.path.exists(temp_path):
+            os.unlink(temp_path)
     return path
+
+
+def leggi_backup(file_path):
+    try:
+        with open(file_path, encoding="utf-8") as f:
+            data = json.load(f)
+        if not isinstance(data, dict) or data.get("version", 1) not in (1, 2):
+            raise ValueError("Versione backup non supportata.")
+        if not isinstance(data.get("playlist_id"), str) or not re.fullmatch(r"[A-Za-z0-9]+", data["playlist_id"]):
+            raise ValueError("ID playlist mancante o non valido.")
+        if not isinstance(data.get("tracks"), list) or any(
+            not isinstance(t, dict) or not isinstance(t.get("uri"), str) or not t["uri"]
+            for t in data["tracks"]
+        ):
+            raise ValueError("Elenco brani non valido.")
+        if data.get("version") == 2:
+            if not isinstance(data.get("items"), list):
+                raise ValueError("Elenco completo degli elementi mancante.")
+            for item in data["items"]:
+                if not isinstance(item, dict) or set(item) != {"uri", "type", "is_local", "added_at"}:
+                    raise ValueError("Identità elemento non valida.")
+                if type(item["is_local"]) is not bool or any(
+                    item[k] is not None and not isinstance(item[k], str) for k in ("uri", "type", "added_at")
+                ):
+                    raise ValueError("Identità elemento non valida.")
+        return data
+    except (OSError, ValueError, TypeError) as e:
+        raise ValueError(f"Backup non valido: {e}") from e
 
 
 def ripristina_backup(
@@ -350,8 +440,7 @@ def ripristina_backup(
     Per prudenza il ripristino si rifiuta se la playlist è cambiata dal backup
     (brani aggiunti o rimossi): l'insieme dei brani deve combaciare esattamente.
     """
-    with open(file_path, encoding="utf-8") as f:
-        data = json.load(f)
+    data = leggi_backup(file_path)
     playlist_id = data["playlist_id"]
     saved_uris = [t["uri"] for t in data["tracks"]]
 
@@ -363,7 +452,15 @@ def ripristina_backup(
             return
 
     print("⏳ Confronto con lo stato attuale della playlist...")
-    current, totale = fetch_tracks_e_totale(sp, playlist_id)
+    snapshot, entries = _leggi_stato(sp, playlist_id)
+    current, totale = _tracks_da_entries(entries), len(entries)
+    if data.get("version") == 2:
+        saved_items = data["items"]
+        key = lambda item: json.dumps(item, sort_keys=True)
+        if Counter(map(key, saved_items)) != Counter(key(_identita(e)) for e in entries):
+            raise ValueError("Playlist cambiata rispetto al backup: ripristino annullato.")
+    elif totale != len(current):
+        raise ValueError("Backup precedente incompleto per una playlist con elementi esclusi: ripristino annullato.")
     current_uris = [t["uri"] for t in current]
 
     if Counter(saved_uris) != Counter(current_uris):
@@ -372,7 +469,7 @@ def ripristina_backup(
         print(giallo("❌ La playlist è cambiata rispetto al backup: ripristino annullato."))
         print(dim(f"   Backup: {len(saved_uris)} brani · Attuale: {len(current_uris)} brani "
                   f"(+{aggiunti} aggiunti, −{rimossi} rimossi)."))
-        return
+        raise ValueError("Playlist cambiata rispetto al backup: ripristino annullato.")
 
     # I brani combaciano: costruisce l'ordine bersaglio che riproduce il backup.
     buckets = defaultdict(deque)
@@ -380,6 +477,11 @@ def ripristina_backup(
         buckets[t["uri"]].append(idx)
     target_order = [buckets[uri].popleft() for uri in saved_uris]
     ordine_assoluto = espandi_ordine_assoluto(current, target_order, totale)
+    if data.get("version") == 2:
+        all_buckets = defaultdict(deque)
+        for idx, entry in enumerate(entries):
+            all_buckets[key(_identita(entry))].append(idx)
+        ordine_assoluto = [all_buckets[key(item)].popleft() for item in saved_items]
 
     if ordine_assoluto == list(range(totale)):
         print("✅ La playlist è già nell'ordine del backup. Nessuna modifica necessaria.")
@@ -398,10 +500,11 @@ def ripristina_backup(
 
     print("💾 Ripristino su Spotify in corso " + dim("(date di aggiunta preservate)") + "...")
     try:
-        moves = applica_riordinamento(sp, playlist_id, ordine_assoluto)
+        moves = _applica_verificato(sp, playlist_id, ordine_assoluto, snapshot, entries)
         print(verde("✅ Playlist ripristinata dal backup!") + dim(f" ({moves} spostamenti effettuati)"))
+        return "riordinata"
     except Exception as e:
-        print(giallo(f"❌ Errore durante il ripristino: {e}"))
+        raise RuntimeError(f"Ripristino interrotto, ordine potenzialmente parziale: {e}") from e
 
 
 def _stampa_analisi(nome: str, tracks: list[dict], quanti: int = 10) -> None:

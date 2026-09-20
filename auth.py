@@ -37,6 +37,25 @@ def _get_app_dir() -> str:
 CACHE_PATH = os.path.join(_get_app_dir(), ".spotify_token_cache")
 
 
+class _SilentSpotifyPKCE(SpotifyPKCE):
+    """Use cached credentials and refresh only, with no interactive fallback."""
+
+    def get_access_token(self, code=None, check_cache=True):
+        login_error = (
+            "Token Spotify assente o non valido. Esegui un login "
+            "senza --no-browser prima di riprovare."
+        )
+        try:
+            cached = self.cache_handler.get_cached_token()
+            token = self.validate_token(cached) if isinstance(cached, dict) else None
+            access_token = token.get("access_token") if token else None
+        except (KeyError, TypeError, ValueError, AttributeError) as exc:
+            raise RuntimeError(login_error) from exc
+        if not isinstance(access_token, str) or not access_token:
+            raise RuntimeError(login_error)
+        return access_token
+
+
 def _build_oauth(open_browser: bool = False) -> SpotifyPKCE:
     """Costruisce l'auth manager PKCE.
 
@@ -50,7 +69,8 @@ def _build_oauth(open_browser: bool = False) -> SpotifyPKCE:
     if not client_id:
         raise ValueError("Credenziali mancanti. Verifica SPOTIPY_CLIENT_ID nel file .env")
 
-    return SpotifyPKCE(
+    oauth_class = SpotifyPKCE if open_browser else _SilentSpotifyPKCE
+    return oauth_class(
         client_id=client_id,
         redirect_uri=redirect_uri,
         scope=SCOPE,
@@ -66,4 +86,10 @@ def create_client(open_browser: bool = True) -> Spotify:
     browser: se il token in cache non è rinnovabile in silenzio, l'auth fallisce
     invece di restare in attesa di un login manuale.
     """
-    return Spotify(auth_manager=_build_oauth(open_browser=open_browser))
+    # Repeating a PUT after an ambiguous failure can move a different block.
+    # Let the application decide whether an operation can safely be retried.
+    return Spotify(
+        auth_manager=_build_oauth(open_browser=open_browser),
+        retries=0,
+        status_retries=0,
+    )
