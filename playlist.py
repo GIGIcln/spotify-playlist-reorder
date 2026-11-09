@@ -160,8 +160,13 @@ def applica_riordinamento(
     playlist_id: str,
     target_order: list[int],
     on_progress=None,
+    snapshot_id: str | None = None,
 ) -> int:
     """Reorder playlist tracks. on_progress(done, total) is called after each step.
+
+    `snapshot_id` è lo snapshot della playlist al momento della lettura dei brani:
+    se passato, Spotify applica gli spostamenti rispetto a quello stato anche
+    quando la playlist è cambiata nel frattempo.
 
     Ritorna il numero di chiamate `playlist_reorder_items` effettuate.
 
@@ -172,7 +177,6 @@ def applica_riordinamento(
     """
     current_order = list(range(len(target_order)))
     pos_of = {v: idx for idx, v in enumerate(current_order)}
-    snapshot_id = None
     moves = 0
     total = len(target_order)
 
@@ -217,6 +221,16 @@ def applica_riordinamento(
                 on_progress(i, total)
 
     return moves
+
+
+def _leggi_snapshot_id(sp: Spotify, playlist_id: str) -> str | None:
+    """Snapshot corrente della playlist, da leggere PRIMA dei brani. Se non è
+    disponibile ritorna None e il riordino procede come prima, senza snapshot."""
+    try:
+        snap = sp.playlist(playlist_id, fields="snapshot_id").get("snapshot_id")
+    except Exception:
+        return None
+    return snap if isinstance(snap, str) else None
 
 
 def verifica_proprietario(sp: Spotify, playlist_id: str, me_id: str) -> tuple[bool, str]:
@@ -275,6 +289,7 @@ def riordina_playlist(
             return
 
     print("⏳ Download dei brani e metadati in corso...")
+    snapshot_id = _leggi_snapshot_id(sp, playlist_id)
     tracks, totale = fetch_tracks_e_totale(sp, playlist_id)
 
     if not tracks:
@@ -307,7 +322,7 @@ def riordina_playlist(
 
     print("💾 Riordinamento su Spotify in corso " + dim("(date di aggiunta preservate)") + "...")
     try:
-        moves = applica_riordinamento(sp, playlist_id, ordine_assoluto)
+        moves = applica_riordinamento(sp, playlist_id, ordine_assoluto, snapshot_id=snapshot_id)
         print(verde(f"✅ Playlist riordinata con successo!") + dim(f" ({moves} spostamenti effettuati)"))
     except Exception as e:
         print(giallo(f"❌ Errore durante il riordinamento: {e}"))
@@ -367,6 +382,7 @@ def ripristina_backup(
             return
 
     print("⏳ Confronto con lo stato attuale della playlist...")
+    snapshot_id = _leggi_snapshot_id(sp, playlist_id)
     current, totale = fetch_tracks_e_totale(sp, playlist_id)
     current_uris = [t["uri"] for t in current]
 
@@ -402,7 +418,7 @@ def ripristina_backup(
 
     print("💾 Ripristino su Spotify in corso " + dim("(date di aggiunta preservate)") + "...")
     try:
-        moves = applica_riordinamento(sp, playlist_id, ordine_assoluto)
+        moves = applica_riordinamento(sp, playlist_id, ordine_assoluto, snapshot_id=snapshot_id)
         print(verde("✅ Playlist ripristinata dal backup!") + dim(f" ({moves} spostamenti effettuati)"))
     except Exception as e:
         print(giallo(f"❌ Errore durante il ripristino: {e}"))

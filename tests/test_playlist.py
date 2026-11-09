@@ -641,3 +641,27 @@ class TestEsitoErrore:
         sp = _sp_con_tracce(["spotify:track:a", "spotify:track:b"])
         sp.playlist_reorder_items.side_effect = RuntimeError("boom")
         assert ripristina_backup(sp, str(bk), me_id="me") is False
+
+
+class TestSnapshotIniziale:
+    def test_applica_usa_snapshot_iniziale_nella_prima_chiamata(self):
+        sp = _FakeSpotify(3)
+        applica_riordinamento(sp, "pid", [2, 0, 1], snapshot_id="snap0")
+        assert sp.received_snapshots[0] == "snap0"
+
+    def test_riordina_passa_lo_snapshot_letto_prima_dei_brani(self):
+        sp = _sp_con_tracce(["spotify:track:b", "spotify:track:a"])
+        for entry, nome in zip(sp.playlist_items.return_value["items"], "ba"):
+            entry["track"]["artists"] = [{"name": nome}]
+        info = sp.playlist.return_value
+        sp.playlist.side_effect = lambda pid, fields=None: (
+            {"snapshot_id": "snap0"} if fields == "snapshot_id" else info)
+        riordina_playlist(sp, "pid", me_id="me")
+        assert sp.playlist_reorder_items.call_args.kwargs["snapshot_id"] == "snap0"
+
+    def test_snapshot_non_disponibile_non_blocca(self):
+        sp = _sp_con_tracce(["spotify:track:b", "spotify:track:a"])
+        for entry, nome in zip(sp.playlist_items.return_value["items"], "ba"):
+            entry["track"]["artists"] = [{"name": nome}]
+        riordina_playlist(sp, "pid", me_id="me")  # playlist() senza snapshot_id
+        assert sp.playlist_reorder_items.call_args.kwargs["snapshot_id"] is None
