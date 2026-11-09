@@ -19,7 +19,7 @@
 
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/gigi/GitHub/spotify-reorder/spotify-env/bin/spotify-reorder</string>
+        <string>/Users/gigi/Documents/GitHub/spotify-reorder/spotify-env/bin/spotify-reorder</string>
         <string>-p</string>
         <string>INCOLLA_QUI_URL_PLAYLIST</string>
         <string>-c</string>
