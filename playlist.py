@@ -259,7 +259,9 @@ def riordina_playlist(
     me_id: str = None,
     chiedi_conferma: bool = False,
     dry_run: bool = False,
-) -> None:
+) -> bool | None:
+    """Riordina la playlist. Ritorna False se il riordino su Spotify è fallito
+    (la CLI ne ricava l'exit code), altrimenti None."""
     if criterio is None:
         criterio = DEFAULT_CRITERIO
     playlist_id = estrai_playlist_id(playlist_url)
@@ -309,6 +311,7 @@ def riordina_playlist(
         print(verde(f"✅ Playlist riordinata con successo!") + dim(f" ({moves} spostamenti effettuati)"))
     except Exception as e:
         print(giallo(f"❌ Errore durante il riordinamento: {e}"))
+        return False
 
 
 def esporta_backup(sp: Spotify, playlist_id: str, dest_dir: str = ".") -> str:
@@ -344,8 +347,9 @@ def ripristina_backup(
     me_id: str = None,
     chiedi_conferma: bool = False,
     dry_run: bool = False,
-) -> None:
+) -> bool | None:
     """Ripristina l'ordine di una playlist da un file di backup.
+    Ritorna False se il ripristino su Spotify è fallito, altrimenti None.
 
     Per prudenza il ripristino si rifiuta se la playlist è cambiata dal backup
     (brani aggiunti o rimossi): l'insieme dei brani deve combaciare esattamente.
@@ -402,6 +406,7 @@ def ripristina_backup(
         print(verde("✅ Playlist ripristinata dal backup!") + dim(f" ({moves} spostamenti effettuati)"))
     except Exception as e:
         print(giallo(f"❌ Errore durante il ripristino: {e}"))
+        return False
 
 
 def _stampa_analisi(nome: str, tracks: list[dict], quanti: int = 10) -> None:

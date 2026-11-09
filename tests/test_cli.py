@@ -266,6 +266,27 @@ class TestMain:
         m_eb.assert_not_called()
         m_rp.assert_called_once()
 
+    def test_exit_code_1_se_riordino_fallisce(self):
+        sp = MagicMock()
+        sp.current_user.return_value = {"id": "me"}
+        with patch("cli.create_client", return_value=sp), \
+             patch("cli.riordina_playlist", side_effect=[False, None]) as m_rp, \
+             pytest.raises(SystemExit) as exc:
+            main(["-p", "PL1", "-p", "PL2", "-y"])
+        assert exc.value.code == 1
+        assert m_rp.call_count == 2  # la seconda playlist viene comunque tentata
+
+    def test_exit_code_1_se_ripristino_fallisce(self, tmp_path):
+        bk = tmp_path / "bk.json"
+        bk.write_text("{}", encoding="utf-8")
+        sp = MagicMock()
+        sp.current_user.return_value = {"id": "me"}
+        with patch("cli.create_client", return_value=sp), \
+             patch("cli.ripristina_backup", return_value=False), \
+             pytest.raises(SystemExit) as exc:
+            main(["--restore", str(bk), "-y"])
+        assert exc.value.code == 1
+
     def test_keyboardinterrupt_uscita_pulita(self):
         with patch("cli._esegui", side_effect=KeyboardInterrupt), \
              pytest.raises(SystemExit) as exc:

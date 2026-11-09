@@ -623,3 +623,21 @@ class TestPosizioniAssolute:
 
         # posizione originale 2 ('a') in testa, il locale fermo, 'b' in coda
         assert fake.order == [2, 1, 0]
+
+
+class TestEsitoErrore:
+    def test_riordina_ritorna_false_se_api_fallisce(self):
+        sp = _sp_con_tracce(["spotify:track:b", "spotify:track:a"])
+        # artisti diversi (b, a): il criterio default richiede uno spostamento
+        for entry, nome in zip(sp.playlist_items.return_value["items"], "ba"):
+            entry["track"]["artists"] = [{"name": nome}]
+        sp.playlist_reorder_items.side_effect = RuntimeError("boom")
+        assert riordina_playlist(sp, "pid", me_id="me") is False
+
+    def test_ripristina_ritorna_false_se_api_fallisce(self, tmp_path):
+        bk = tmp_path / "bk.json"
+        bk.write_text(json.dumps({"playlist_id": "pid", "tracks": [
+            {"uri": "spotify:track:b"}, {"uri": "spotify:track:a"}]}), encoding="utf-8")
+        sp = _sp_con_tracce(["spotify:track:a", "spotify:track:b"])
+        sp.playlist_reorder_items.side_effect = RuntimeError("boom")
+        assert ripristina_backup(sp, str(bk), me_id="me") is False
