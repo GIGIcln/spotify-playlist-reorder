@@ -223,10 +223,11 @@ def _esegui(argv=None) -> None:
     print(verde("✅ Autenticazione completata con successo!"))
 
     if args.restore:
-        ripristina_backup(
+        if ripristina_backup(
             sp, args.restore, me_id=me_id,
             chiedi_conferma=not args.yes, dry_run=args.dry_run,
-        )
+        ) is False:
+            raise SystemExit(1)
         return
 
     if args.playlist:
@@ -252,6 +253,7 @@ def _esegui(argv=None) -> None:
 
     chiedi_conferma = not args.yes
     backup_dir = os.path.join(_get_app_dir(), "backups")
+    falliti = 0
 
     for i, playlist_id in enumerate(playlist_ids, 1):
         if len(playlist_ids) > 1:
@@ -259,14 +261,19 @@ def _esegui(argv=None) -> None:
         if args.backup_before and not args.dry_run:
             path = esporta_backup(sp, playlist_id, backup_dir)
             print(verde("💾 Backup salvato: ") + dim(path))
-        riordina_playlist(
+        if riordina_playlist(
             sp,
             "https://open.spotify.com/playlist/" + playlist_id,
             criterio,
             me_id=me_id,
             chiedi_conferma=chiedi_conferma,
             dry_run=args.dry_run,
-        )
+        ) is False:
+            falliti += 1
+
+    # Exit code != 0 se almeno un riordino è fallito: serve a launchd/script.
+    if falliti:
+        raise SystemExit(1)
 
 
 def main(argv=None) -> None:
